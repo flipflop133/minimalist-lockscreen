@@ -38,13 +38,20 @@ void initialize_graphics() {
       fprintf(stderr, "Unable to create surface\n");
       return;
     }
-    screen_configs[i].overlay_object = cairo_create(screen_configs[i].surface);
-    screen_configs[i].background_object =
-        cairo_create(screen_configs[i].surface);
 
+    screen_configs[i].screen_buffer = cairo_create(screen_configs[i].surface);
+    screen_configs[i].off_screen_buffer = cairo_surface_create_similar(
+        screen_configs[i].surface, CAIRO_CONTENT_COLOR_ALPHA,
+        display_config->screen_info[i].width,
+        display_config->screen_info[i].height);
+
+    screen_configs[i].overlay_buffer =
+        cairo_create(screen_configs[i].off_screen_buffer);
+    screen_configs[i].background_buffer =
+        cairo_create(screen_configs[i].off_screen_buffer);
     cairo_font_face_t *font_face = cairo_toy_font_face_create(
         "JetBrainsMono NF", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    cairo_set_font_face(screen_configs[i].overlay_object, font_face);
+    cairo_set_font_face(screen_configs[i].overlay_buffer, font_face);
     cairo_font_face_destroy(font_face);
 
     screen_configs[i].pattern =
@@ -71,7 +78,7 @@ void initialize_graphics() {
     cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
     cairo_pattern_set_matrix(screen_configs[i].pattern, &matrix);
 
-    cairo_set_source(screen_configs[i].background_object,
+    cairo_set_source(screen_configs[i].background_buffer,
                      screen_configs[i].pattern);
 
     determine_text_color(display_config->image_surface,
@@ -82,6 +89,10 @@ void initialize_graphics() {
     draw_image(i);
     draw_password_entry(i);
     draw_clock(i);
+
+    cairo_set_source_surface(screen_configs[i].screen_buffer,
+                             screen_configs[i].off_screen_buffer, 0, 0);
+    cairo_paint(screen_configs[i].screen_buffer);
   }
 }
 
@@ -93,15 +104,18 @@ void redraw_graphics() {
     draw_image(i);
     draw_password_entry(i);
     draw_clock(i);
+    cairo_set_source_surface(screen_configs[i].screen_buffer,
+                             screen_configs[i].off_screen_buffer, 0, 0);
+    cairo_paint(screen_configs[i].screen_buffer);
   }
   pthread_mutex_unlock(&mutex);
 }
 
-void draw_image(int i) { cairo_paint(screen_configs[i].background_object); }
+void draw_image(int i) { cairo_paint(screen_configs[i].background_buffer); }
 
 void draw_password_entry(int screen_num) {
   // Draw rounded rectangle
-  cairo_set_line_width(screen_configs[screen_num].overlay_object, 2);
+  cairo_set_line_width(screen_configs[screen_num].overlay_buffer, 2);
   double width;
   // Move to starting point
   if (display_config->screen_info[screen_num].width >
@@ -115,44 +129,44 @@ void draw_password_entry(int screen_num) {
   double y = display_config->screen_info[screen_num].height / 2 - (height / 2);
 
   double radius = 10.0;
-  cairo_move_to(screen_configs[screen_num].overlay_object, x, y);
+  cairo_move_to(screen_configs[screen_num].overlay_buffer, x, y);
 
-  cairo_line_to(screen_configs[screen_num].overlay_object, x + width - radius,
+  cairo_line_to(screen_configs[screen_num].overlay_buffer, x + width - radius,
                 y);
-  cairo_arc(screen_configs[screen_num].overlay_object, x + width - radius,
+  cairo_arc(screen_configs[screen_num].overlay_buffer, x + width - radius,
             y + radius, radius, -0.5 * M_PI, 0.0);
-  cairo_line_to(screen_configs[screen_num].overlay_object, x + width,
+  cairo_line_to(screen_configs[screen_num].overlay_buffer, x + width,
                 y + height - radius);
-  cairo_arc(screen_configs[screen_num].overlay_object, x + width - radius,
+  cairo_arc(screen_configs[screen_num].overlay_buffer, x + width - radius,
             y + height - radius, radius, 0.0, 0.5 * M_PI);
-  cairo_line_to(screen_configs[screen_num].overlay_object, x + radius,
+  cairo_line_to(screen_configs[screen_num].overlay_buffer, x + radius,
                 y + height);
-  cairo_arc(screen_configs[screen_num].overlay_object, x + radius,
+  cairo_arc(screen_configs[screen_num].overlay_buffer, x + radius,
             y + height - radius, radius, 0.5 * M_PI, M_PI);
-  cairo_line_to(screen_configs[screen_num].overlay_object, x, y + radius);
-  cairo_arc(screen_configs[screen_num].overlay_object, x + radius, y + radius,
+  cairo_line_to(screen_configs[screen_num].overlay_buffer, x, y + radius);
+  cairo_arc(screen_configs[screen_num].overlay_buffer, x + radius, y + radius,
             radius, M_PI, 1.5 * M_PI);
-  cairo_close_path(screen_configs[screen_num].overlay_object);
+  cairo_close_path(screen_configs[screen_num].overlay_buffer);
 
-  cairo_set_source_rgba(screen_configs[screen_num].overlay_object,
+  cairo_set_source_rgba(screen_configs[screen_num].overlay_buffer,
                         screen_configs->text_color, screen_configs->text_color,
                         screen_configs->text_color, 0.5);
-  cairo_fill_preserve(screen_configs[screen_num].overlay_object);
+  cairo_fill_preserve(screen_configs[screen_num].overlay_buffer);
 
-  cairo_set_font_size(screen_configs[screen_num].overlay_object, 30);
-  cairo_set_source_rgb(screen_configs[screen_num].overlay_object,
+  cairo_set_font_size(screen_configs[screen_num].overlay_buffer, 30);
+  cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer,
                        screen_configs->text_color, screen_configs->text_color,
                        screen_configs->text_color);
   // Draw text
   cairo_font_extents_t font_extents;
-  cairo_font_extents(screen_configs[screen_num].overlay_object, &font_extents);
+  cairo_font_extents(screen_configs[screen_num].overlay_buffer, &font_extents);
   int password_text_padding = 10;
   if (current_input_index > 0) {
     cairo_text_extents_t password_extents;
     char *str = (char *)malloc(current_input_index + 1);
     str[0] = '\0';
     for (int i = 0; i < current_input_index; i++) {
-      cairo_text_extents(screen_configs[screen_num].overlay_object, str,
+      cairo_text_extents(screen_configs[screen_num].overlay_buffer, str,
                          &password_extents);
       if (password_extents.width >= width - (password_text_padding * 2)) {
         break;
@@ -162,24 +176,24 @@ void draw_password_entry(int screen_num) {
     }
 
     cairo_move_to(
-        screen_configs[screen_num].overlay_object, x + password_text_padding,
+        screen_configs[screen_num].overlay_buffer, x + password_text_padding,
         y + (height / 2) + (font_extents.height / 2) - font_extents.descent);
-    cairo_show_text(screen_configs[screen_num].overlay_object, str);
+    cairo_show_text(screen_configs[screen_num].overlay_buffer, str);
     free(str);
   } else {
     char *str = "Enter password";
     if (password_is_wrong) {
-      cairo_set_source_rgb(screen_configs[screen_num].overlay_object, 1, 0, 0);
+      cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer, 1, 0, 0);
       str = "Wrong password!";
     }
 
     cairo_text_extents_t password_extents;
-    cairo_text_extents(screen_configs[screen_num].overlay_object, str,
+    cairo_text_extents(screen_configs[screen_num].overlay_buffer, str,
                        &password_extents);
-    cairo_move_to(screen_configs[screen_num].overlay_object, x + 10,
+    cairo_move_to(screen_configs[screen_num].overlay_buffer, x + 10,
                   y + (height / 2) + (font_extents.height / 2) -
                       font_extents.descent);
-    cairo_show_text(screen_configs[screen_num].overlay_object, str);
+    cairo_show_text(screen_configs[screen_num].overlay_buffer, str);
   }
 }
 
@@ -189,37 +203,37 @@ void draw_clock(int screen_num) {
   time_props = localtime(&t);
   if (time_props != NULL) {
     cairo_set_source_rgba(
-        screen_configs[screen_num].overlay_object, screen_configs->text_color,
+        screen_configs[screen_num].overlay_buffer, screen_configs->text_color,
         screen_configs->text_color, screen_configs->text_color, 0.8);
     // Display date
-    cairo_set_font_size(screen_configs[screen_num].overlay_object, 30.0);
+    cairo_set_font_size(screen_configs[screen_num].overlay_buffer, 30.0);
     char date[64];
     strftime(date, 64, "%A, %d %B", time_props);
     cairo_text_extents_t date_extents;
-    cairo_text_extents(screen_configs[screen_num].overlay_object, date,
+    cairo_text_extents(screen_configs[screen_num].overlay_buffer, date,
                        &date_extents);
     cairo_font_extents_t font_extents;
-    cairo_font_extents(screen_configs[screen_num].overlay_object,
+    cairo_font_extents(screen_configs[screen_num].overlay_buffer,
                        &font_extents);
-    cairo_move_to(screen_configs[screen_num].overlay_object,
+    cairo_move_to(screen_configs[screen_num].overlay_buffer,
                   (display_config->screen_info[screen_num].width / 2) -
                       (date_extents.width / 2) - (date_extents.x_bearing),
                   (display_config->screen_info[screen_num].height / 5));
-    cairo_show_text(screen_configs[screen_num].overlay_object, date);
+    cairo_show_text(screen_configs[screen_num].overlay_buffer, date);
 
     // Display clock
-    cairo_set_font_size(screen_configs[screen_num].overlay_object, 150.0);
+    cairo_set_font_size(screen_configs[screen_num].overlay_buffer, 150.0);
     char clock[32];
     strftime(clock, 32, "%I:%M", time_props);
     cairo_text_extents_t clock_extents;
-    cairo_text_extents(screen_configs[screen_num].overlay_object, clock,
+    cairo_text_extents(screen_configs[screen_num].overlay_buffer, clock,
                        &clock_extents);
-    cairo_move_to(screen_configs[screen_num].overlay_object,
+    cairo_move_to(screen_configs[screen_num].overlay_buffer,
                   (display_config->screen_info[screen_num].width / 2) -
                       (clock_extents.width / 2) - (clock_extents.x_bearing),
                   (display_config->screen_info[screen_num].height / 5) +
                       date_extents.height + clock_extents.height);
-    cairo_show_text(screen_configs[screen_num].overlay_object, clock);
+    cairo_show_text(screen_configs[screen_num].overlay_buffer, clock);
   }
 }
 

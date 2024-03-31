@@ -18,8 +18,10 @@ struct ScreenConfig {
   Window window;
   Visual *visual;
   cairo_surface_t *surface;
-  cairo_t *overlay_object;
-  cairo_t *background_object;
+  cairo_t *overlay_buffer;
+  cairo_t *background_buffer;
+  cairo_t *screen_buffer;
+  cairo_surface_t *off_screen_buffer;
   int text_color;
   cairo_pattern_t *pattern;
 };

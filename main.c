@@ -96,13 +96,14 @@ int main(int argc, char *argv[]) {
   // Clean up
   for (int i = 0; i < display_config->num_screens; i++) {
     cairo_font_face_t *overlay_font_face =
-        cairo_get_font_face(screen_configs[i].overlay_object);
+        cairo_get_font_face(screen_configs[i].overlay_buffer);
     cairo_font_face_destroy(overlay_font_face);
-    cairo_destroy(screen_configs[i].overlay_object);
-    cairo_destroy(screen_configs[i].background_object);
-
+    cairo_destroy(screen_configs[i].overlay_buffer);
+    cairo_destroy(screen_configs[i].background_buffer);
     cairo_pattern_destroy(screen_configs[i].pattern);
     cairo_surface_destroy(screen_configs[i].surface);
+    cairo_surface_destroy(screen_configs[i].off_screen_buffer);
+    cairo_destroy(screen_configs[i].screen_buffer);
     XDestroyWindow(display_config->display, screen_configs[i].window);
   }
   cairo_surface_destroy(display_config->image_surface);
