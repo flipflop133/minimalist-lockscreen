@@ -45,6 +45,7 @@ Cleaning:
 
 - [ ] only redraw the part of the wallpaper that needs to be redrawn
 - [ ] allow missing args
+- [ ] make date and unlock indicator modules as well
 
 ## Stuff to add
 
