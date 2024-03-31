@@ -15,8 +15,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libx11-dev libxrandr-dev xserver-xorg-dev libxinerama-dev clang-tools
+        apt-get update
+        apt-get install -y libx11-dev libxrandr-dev xserver-xorg-dev libxinerama-dev
 
     - name: make
       run: ./build.sh
