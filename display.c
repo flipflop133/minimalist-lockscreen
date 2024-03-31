@@ -1,19 +1,22 @@
 #include "display.h"
 #include "args.h"
 #include "defs.h"
-#include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <cairo/cairo-xlib.h>
 #include <cairo/cairo.h>
 #include <math.h>
-#include <openssl/evp.h>
 #include <pthread.h>
-#include <pwd.h>
-#include <shadow.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <time.h>
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/**
+ * Initializes the graphics for the lockscreen.
+ */
 void initialize_graphics() {
   display_config->image_surface =
       cairo_image_surface_create_from_png(retrieve_command_arg("--image"));
@@ -85,23 +88,18 @@ void initialize_graphics() {
                          display_config->screen_info[i].width,
                          display_config->screen_info[i].height);
 
-    // Draw graphics
-    draw_image(i);
-    draw_password_entry(i);
-    draw_clock(i);
-
-    cairo_set_source_surface(screen_configs[i].screen_buffer,
-                             screen_configs[i].off_screen_buffer, 0, 0);
-    cairo_paint(screen_configs[i].screen_buffer);
+    draw_graphics();
   }
 }
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-void redraw_graphics() {
+/**
+ * Draws the graphics on the screens.
+ */
+void draw_graphics() {
   pthread_mutex_lock(&mutex);
   for (int i = 0; i < display_config->num_screens; i++) {
     // Draw graphics
-    draw_image(i);
+    cairo_paint(screen_configs[i].background_buffer); // Draw background image
     draw_password_entry(i);
     draw_clock(i);
     cairo_set_source_surface(screen_configs[i].screen_buffer,
@@ -111,8 +109,12 @@ void redraw_graphics() {
   pthread_mutex_unlock(&mutex);
 }
 
-void draw_image(int i) { cairo_paint(screen_configs[i].background_buffer); }
-
+/**
+ * Draws the password entry interface on the specified screen.
+ *
+ * @param screen_num The number of the screen where the password entry interface
+ * should be drawn.
+ */
 void draw_password_entry(int screen_num) {
   // Draw rounded rectangle
   cairo_set_line_width(screen_configs[screen_num].overlay_buffer, 2);
@@ -120,13 +122,15 @@ void draw_password_entry(int screen_num) {
   // Move to starting point
   if (display_config->screen_info[screen_num].width >
       display_config->screen_info[screen_num].height) {
-    width = display_config->screen_info[screen_num].width / 9;
+    width = (double)display_config->screen_info[screen_num].width / 9;
   } else {
-    width = display_config->screen_info[screen_num].height / 9;
+    width = (double)display_config->screen_info[screen_num].height / 9;
   }
   double height = width / 4;
-  double x = (display_config->screen_info[screen_num].width / 2) - (width / 2);
-  double y = display_config->screen_info[screen_num].height / 2 - (height / 2);
+  double x =
+      ((double)display_config->screen_info[screen_num].width / 2) - (width / 2);
+  double y =
+      (double)display_config->screen_info[screen_num].height / 2 - (height / 2);
 
   double radius = 10.0;
   cairo_move_to(screen_configs[screen_num].overlay_buffer, x, y);
@@ -197,6 +201,11 @@ void draw_password_entry(int screen_num) {
   }
 }
 
+/**
+ * Draws a clock on the specified screen.
+ *
+ * @param screen_num The number of the screen to draw the clock on.
+ */
 void draw_clock(int screen_num) {
   time_t t = time(&t);
   struct tm *time_props = NULL;
@@ -216,9 +225,9 @@ void draw_clock(int screen_num) {
     cairo_font_extents(screen_configs[screen_num].overlay_buffer,
                        &font_extents);
     cairo_move_to(screen_configs[screen_num].overlay_buffer,
-                  (display_config->screen_info[screen_num].width / 2) -
+                  ((double)display_config->screen_info[screen_num].width / 2) -
                       (date_extents.width / 2) - (date_extents.x_bearing),
-                  (display_config->screen_info[screen_num].height / 5));
+                  ((double)display_config->screen_info[screen_num].height / 5));
     cairo_show_text(screen_configs[screen_num].overlay_buffer, date);
 
     // Display clock
@@ -229,14 +238,21 @@ void draw_clock(int screen_num) {
     cairo_text_extents(screen_configs[screen_num].overlay_buffer, clock,
                        &clock_extents);
     cairo_move_to(screen_configs[screen_num].overlay_buffer,
-                  (display_config->screen_info[screen_num].width / 2) -
+                  ((double)display_config->screen_info[screen_num].width / 2) -
                       (clock_extents.width / 2) - (clock_extents.x_bearing),
-                  (display_config->screen_info[screen_num].height / 5) +
+                  ((double)display_config->screen_info[screen_num].height / 5) +
                       date_extents.height + clock_extents.height);
     cairo_show_text(screen_configs[screen_num].overlay_buffer, clock);
   }
 }
 
+/**
+ * Determines the text color for the given image.
+ *
+ * @param img The Cairo surface representing the image.
+ * @param width The width of the image.
+ * @param height The height of the image.
+ */
 void determine_text_color(cairo_surface_t *img, int width, int height) {
   char color[7] = "a3a3a3";
   int text_color = 0;
@@ -270,7 +286,7 @@ void determine_text_color(cairo_surface_t *img, int width, int height) {
     for (size_t c = 0; c < (strlen(color)); c++) {
       tot += color[c] - '0';
     }
-    if (tot / 2 < 127.5) {
+    if ((double)tot / 2 < 127.5) {
       text_color = 255;
     }
   }

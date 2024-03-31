@@ -1,7 +1,17 @@
 #include "pam.h"
+#include <security/_pam_types.h>
+#include <security/pam_appl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/**
+ * Authenticates a user using PAM (Pluggable Authentication Modules).
+ *
+ * @param password The user's password.
+ * @param username The user's username.
+ * @return Returns an integer indicating the authentication result.
+ */
 int auth_pam(const char *password, const char *username) {
   const char *service_name = "login"; // PAM service name
 
@@ -29,7 +39,21 @@ int auth_pam(const char *password, const char *username) {
 
   return ret == PAM_SUCCESS ? 0 : 1;
 }
-// PAM conversation function
+
+/**
+ * Function: converse
+ * ------------------
+ * This function is responsible for conducting a conversation between the PAM
+ * module and the application. It takes in the number of messages and an array
+ * of pam_message structures as input. The function returns an integer value
+ * indicating the success or failure of the conversation.
+ *
+ * @param num_msg: The number of messages in the conversation.
+ * @param msg: An array of pam_message structures representing the messages in
+ * the conversation.
+ * @return: An integer value indicating the success or failure of the
+ * conversation.
+ */
 int converse(int num_msg, const struct pam_message **msg,
              struct pam_response **resp, void *appdata_ptr) {
   const char *password = (const char *)appdata_ptr;

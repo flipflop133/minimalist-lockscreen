@@ -4,10 +4,9 @@
 #include <cairo/cairo.h>
 
 void applyBlur(cairo_surface_t *surface, int radius);
-void draw_image(int screen_num);
 void draw_password_entry(int screen_num);
 void draw_clock(int screen_num);
 void determine_text_color(cairo_surface_t *img, int width, int height);
 void initialize_graphics();
-void redraw_graphics();
+void draw_graphics();
 #endif

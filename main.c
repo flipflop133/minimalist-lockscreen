@@ -2,19 +2,19 @@
 #include "defs.h"
 #include "display.h"
 #include "pam.h"
+#include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <X11/extensions/Xfixes.h>
-#include <cairo/cairo-xlib.h>
+#include <X11/extensions/Xinerama.h>
 #include <cairo/cairo.h>
-#include <math.h>
-#include <openssl/evp.h>
+#include <pthread.h>
 #include <pwd.h>
-#include <shadow.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+
 struct DisplayConfig *display_config;
 struct ScreenConfig screen_configs[128]; // TODO : use a dynamic array
 struct passwd *pw;
@@ -22,6 +22,7 @@ char current_input[128];
 int current_input_index = 0;
 int password_is_wrong = 0;
 int running = 1;
+
 int main(int argc, char *argv[]) {
   parse_arguments(argc, argv);
   pw = getpwnam(getlogin());
