@@ -191,7 +191,13 @@ void draw_password_entry(int screen_num) {
   } else {
     char *str = "Enter password";
     if (password_is_wrong) {
-      cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer, 1, 0, 0);
+      if (screen_configs->text_color > (255 / 2)) {
+        cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer,
+                             0.70196078431, 0, 0);
+      } else {
+        cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer, 1,
+                             0.3686274509803922, 0.3686274509803922);
+      }
       str = "Wrong password!";
     }
 
