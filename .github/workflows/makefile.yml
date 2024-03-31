@@ -16,7 +16,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libx11-dev libxrandr-dev xserver-xorg-dev libxinerama-dev include-what-you-use
+        sudo apt-get install -y libx11-dev libxrandr-dev xserver-xorg-dev libxinerama-dev clang-tools
 
     - name: make
       run: ./build.sh
