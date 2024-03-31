@@ -1,7 +1,6 @@
 #ifndef DEFS_H
 #define DEFS_H
 
-#include <X11/Xft/Xft.h>
 #include <X11/extensions/Xinerama.h>
 #include <cairo/cairo.h>
 #include <security/pam_appl.h>
@@ -14,7 +13,6 @@ void *date_loop(void *arg);
 
 // Structure definitions
 struct ScreenConfig {
-  XftDraw *xftDraw;
   Window window;
   Visual *visual;
   cairo_surface_t *surface;
@@ -29,10 +27,7 @@ struct ScreenConfig {
 struct DisplayConfig {
   Display *display;
   GC gc;
-  XftFont *font;
-  XftColor xftColor;
   int num_screens;
-  XftColor workspace_foreground_color;
   int yFontCoordinate;
   XineramaScreenInfo *screen_info;
   cairo_surface_t *image_surface;
