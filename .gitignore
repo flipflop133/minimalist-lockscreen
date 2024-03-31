@@ -1,0 +1,17 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore makefile
+!Makefile
+
+# Unignore all dirs
+!*/
+
+# Ignore vscode dir
+.vscode/
+
+# Ignore CMAKE build directory
+build/

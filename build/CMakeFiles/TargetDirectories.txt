@@ -1,3 +1,0 @@
-/home/francois/minimalist-lockscreen/build/CMakeFiles/minimalist-lockscreen.dir
-/home/francois/minimalist-lockscreen/build/CMakeFiles/edit_cache.dir
-/home/francois/minimalist-lockscreen/build/CMakeFiles/rebuild_cache.dir

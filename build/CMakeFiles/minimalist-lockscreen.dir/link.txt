@@ -1,1 +1,0 @@
-/usr/bin/clang -g "CMakeFiles/minimalist-lockscreen.dir/main.c.o" "CMakeFiles/minimalist-lockscreen.dir/pam.c.o" "CMakeFiles/minimalist-lockscreen.dir/args.c.o" "CMakeFiles/minimalist-lockscreen.dir/display.c.o" -o minimalist-lockscreen  -lX11 -lXft -lXrandr -lXinerama -lssl -lcrypto -lpam -lcairo -lXfixes
