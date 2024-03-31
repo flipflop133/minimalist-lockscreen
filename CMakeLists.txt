@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(minimalist-lockscreen)
 
-add_executable(minimalist-lockscreen main.c pam.c args.c display.c)
+add_executable(minimalist-lockscreen src/main.c src/pam.c src/args.c src/display.c)
 
 # Add include directories
 target_include_directories(minimalist-lockscreen PRIVATE

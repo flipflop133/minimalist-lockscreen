@@ -53,3 +53,4 @@ Cleaning:
 - [ ] support for custom colors
 - [ ] support for multiple wallpapers for multiple monitors
 - [ ] custom modules support (ex: display weather, music, calendar at given positions)
+- [ ] video support

@@ -136,7 +136,7 @@ void draw_password_entry(int screen_num) {
   double y =
       (double)display_config->screen_info[screen_num].height / 2 - (height / 2);
 
-  double radius = 10.0;
+  double radius = 20.0;
   cairo_move_to(screen_configs[screen_num].overlay_buffer, x, y);
 
   cairo_line_to(screen_configs[screen_num].overlay_buffer, x + width - radius,
@@ -161,11 +161,11 @@ void draw_password_entry(int screen_num) {
                         screen_configs->text_color, 0.5);
   cairo_fill_preserve(screen_configs[screen_num].overlay_buffer);
 
-  cairo_set_font_size(screen_configs[screen_num].overlay_buffer, 30);
-  cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer,
-                       screen_configs->text_color, screen_configs->text_color,
-                       screen_configs->text_color);
   // Draw text
+  cairo_set_font_size(screen_configs[screen_num].overlay_buffer, 30);
+  int opposite_color = get_opposite_color(screen_configs->text_color);
+  cairo_set_source_rgb(screen_configs[screen_num].overlay_buffer,
+                       opposite_color, opposite_color, opposite_color);
   cairo_font_extents_t font_extents;
   cairo_font_extents(screen_configs[screen_num].overlay_buffer, &font_extents);
   int password_text_padding = 10;
@@ -203,6 +203,17 @@ void draw_password_entry(int screen_num) {
                       font_extents.descent);
     cairo_show_text(screen_configs[screen_num].overlay_buffer, str);
   }
+}
+
+/**
+ * Calculates the opposite color of the given color.
+ *
+ * @param color The color value to calculate the opposite color for.
+ * @return The opposite color value.
+ */
+int get_opposite_color(int color) {
+  int max_color_value = 255;
+  return max_color_value - color;
 }
 
 /**
