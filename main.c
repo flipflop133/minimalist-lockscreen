@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
   while (running) {
     XNextEvent(display_config->display, &event);
     if (event.type == Expose) {
-      redraw_graphics();
+      draw_graphics();
     } else if (event.type == KeyPress) {
       handle_keypress(event.xkey);
     }
@@ -115,6 +115,11 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+/**
+ * Handles a key press event.
+ *
+ * @param keyEvent The XKeyEvent representing the key press event.
+ */
 void handle_keypress(XKeyEvent keyEvent) {
   password_is_wrong = 0;
   if (keyEvent.keycode == 22) {
@@ -136,7 +141,7 @@ void handle_keypress(XKeyEvent keyEvent) {
     current_input[current_input_index] = event_char;
     current_input_index++;
   }
-  redraw_graphics();
+  draw_graphics();
 }
 
 /**
@@ -156,7 +161,7 @@ unsigned long hex_color_to_pixel(char *hex_color, int screen_num) {
 
 void *date_loop(void *arg) {
   while (running) {
-    redraw_graphics();
+    draw_graphics();
     sleep(1);
   }
   return NULL;

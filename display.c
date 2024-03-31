@@ -28,36 +28,39 @@ void initialize_graphics() {
   }
 
   // Initialize graphics for each screen
-  for (int i = 0; i < display_config->num_screens; i++) {
+  for (int screen_num = 0; screen_num < display_config->num_screens;
+       screen_num++) {
     // Initialize cairo surface
-    screen_configs[i].visual = DefaultVisual(
+    screen_configs[screen_num].visual = DefaultVisual(
         display_config->display, DefaultScreen(display_config->display));
-    screen_configs[i].surface = cairo_xlib_surface_create(
-        display_config->display, screen_configs[i].window,
-        screen_configs[i].visual, display_config->screen_info[i].width,
-        display_config->screen_info[i].height);
+    screen_configs[screen_num].surface = cairo_xlib_surface_create(
+        display_config->display, screen_configs[screen_num].window,
+        screen_configs[screen_num].visual,
+        display_config->screen_info[screen_num].width,
+        display_config->screen_info[screen_num].height);
 
-    if (screen_configs[i].surface == NULL) {
+    if (screen_configs[screen_num].surface == NULL) {
       fprintf(stderr, "Unable to create surface\n");
       return;
     }
 
-    screen_configs[i].screen_buffer = cairo_create(screen_configs[i].surface);
-    screen_configs[i].off_screen_buffer = cairo_surface_create_similar(
-        screen_configs[i].surface, CAIRO_CONTENT_COLOR_ALPHA,
-        display_config->screen_info[i].width,
-        display_config->screen_info[i].height);
+    screen_configs[screen_num].screen_buffer =
+        cairo_create(screen_configs[screen_num].surface);
+    screen_configs[screen_num].off_screen_buffer = cairo_surface_create_similar(
+        screen_configs[screen_num].surface, CAIRO_CONTENT_COLOR_ALPHA,
+        display_config->screen_info[screen_num].width,
+        display_config->screen_info[screen_num].height);
 
-    screen_configs[i].overlay_buffer =
-        cairo_create(screen_configs[i].off_screen_buffer);
-    screen_configs[i].background_buffer =
-        cairo_create(screen_configs[i].off_screen_buffer);
+    screen_configs[screen_num].overlay_buffer =
+        cairo_create(screen_configs[screen_num].off_screen_buffer);
+    screen_configs[screen_num].background_buffer =
+        cairo_create(screen_configs[screen_num].off_screen_buffer);
     cairo_font_face_t *font_face = cairo_toy_font_face_create(
         "JetBrainsMono NF", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    cairo_set_font_face(screen_configs[i].overlay_buffer, font_face);
+    cairo_set_font_face(screen_configs[screen_num].overlay_buffer, font_face);
     cairo_font_face_destroy(font_face);
 
-    screen_configs[i].pattern =
+    screen_configs[screen_num].pattern =
         cairo_pattern_create_for_surface(display_config->image_surface);
 
     // Scale the pattern surface
@@ -65,10 +68,10 @@ void initialize_graphics() {
     double scale_factor;
     double x_scale =
         cairo_image_surface_get_width(display_config->image_surface) /
-        (double)display_config->screen_info[i].width;
+        (double)display_config->screen_info[screen_num].width;
     double y_scale =
         cairo_image_surface_get_height(display_config->image_surface) /
-        (double)display_config->screen_info[i].height;
+        (double)display_config->screen_info[screen_num].height;
 
     if (x_scale < y_scale) {
       // Fit the image height to the screen height
@@ -79,17 +82,16 @@ void initialize_graphics() {
     }
 
     cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
-    cairo_pattern_set_matrix(screen_configs[i].pattern, &matrix);
+    cairo_pattern_set_matrix(screen_configs[screen_num].pattern, &matrix);
 
-    cairo_set_source(screen_configs[i].background_buffer,
-                     screen_configs[i].pattern);
+    cairo_set_source(screen_configs[screen_num].background_buffer,
+                     screen_configs[screen_num].pattern);
 
     determine_text_color(display_config->image_surface,
-                         display_config->screen_info[i].width,
-                         display_config->screen_info[i].height);
-
-    draw_graphics();
+                         display_config->screen_info[screen_num].width,
+                         display_config->screen_info[screen_num].height);
   }
+  draw_graphics();
 }
 
 /**
@@ -97,14 +99,16 @@ void initialize_graphics() {
  */
 void draw_graphics() {
   pthread_mutex_lock(&mutex);
-  for (int i = 0; i < display_config->num_screens; i++) {
-    // Draw graphics
-    cairo_paint(screen_configs[i].background_buffer); // Draw background image
-    draw_password_entry(i);
-    draw_clock(i);
-    cairo_set_source_surface(screen_configs[i].screen_buffer,
-                             screen_configs[i].off_screen_buffer, 0, 0);
-    cairo_paint(screen_configs[i].screen_buffer);
+  for (int screen_num = 0; screen_num < display_config->num_screens;
+       screen_num++) {
+    cairo_paint(
+        screen_configs[screen_num].background_buffer); // Draw background image
+    draw_password_entry(screen_num);
+    draw_clock(screen_num);
+    cairo_set_source_surface(screen_configs[screen_num].screen_buffer,
+                             screen_configs[screen_num].off_screen_buffer, 0,
+                             0);
+    cairo_paint(screen_configs[screen_num].screen_buffer);
   }
   pthread_mutex_unlock(&mutex);
 }
