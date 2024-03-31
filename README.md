@@ -1,5 +1,6 @@
 # Minimalist Lockscreen [![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/flipflop133/minimalist-lockscreen/makefile.yml)](https://github.com/flipflop133/minimalist-lockscreen/actions)
-
+![preview](https://github.com/flipflop133/minimalist-lockscreen/assets/48946818/c769b087-acac-4729-bb36-7a4d9008b677)
+[Image source](https://unsplash.com/photos/person-sitting-inside-restaurant-zlABb6Gke24)
 ## Building
 
 ### Install dependencies
