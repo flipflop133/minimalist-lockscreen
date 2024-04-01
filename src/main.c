@@ -1,7 +1,8 @@
 #include "args.h"
 #include "defs.h"
-#include "display.h"
+#include "graphics/graphics.h"
 #include "pam.h"
+#include "utils.h"
 #include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -22,15 +23,56 @@ char current_input[128];
 int current_input_index = 0;
 int password_is_wrong = 0;
 int running = 1;
+pthread_t date_thread;
+Window root_window;
 
 int main(int argc, char *argv[]) {
   parse_arguments(argc, argv);
+
+  // Retrieve user database
   pw = getpwnam(getlogin());
   if (pw == NULL) {
     return 1;
   }
-  display_config = (struct DisplayConfig *)malloc(sizeof(struct DisplayConfig));
+
+  initialize_windows();
+
+  initialize_graphics();
+
+  XFixesHideCursor(display_config->display, root_window);
+  XGrabKeyboard(display_config->display,
+                DefaultRootWindow(display_config->display), True, GrabModeAsync,
+                GrabModeAsync, CurrentTime);
+
+  // Create a thread to update the date and time
+  int thread_create_result;
+  thread_create_result = pthread_create(&date_thread, NULL, date_loop, NULL);
+  if (thread_create_result != 0) {
+    fprintf(stderr, "Failed to create thread.\n");
+    return 1;
+  }
+
+  // Main event loop
   XEvent event;
+  while (running) {
+    XNextEvent(display_config->display, &event);
+    if (event.type == Expose) {
+      draw_graphics();
+    } else if (event.type == KeyPress) {
+      handle_keypress(event.xkey);
+    }
+  }
+
+  cleanUp();
+
+  return 0;
+}
+
+/**
+ * Initializes the windows for the application.
+ */
+void initialize_windows() {
+  display_config = (struct DisplayConfig *)malloc(sizeof(struct DisplayConfig));
 
   display_config->display = XOpenDisplay(NULL);
   if (display_config->display == NULL) {
@@ -42,8 +84,8 @@ int main(int argc, char *argv[]) {
   unsigned long background_color =
       hex_color_to_pixel("#000000", DefaultScreen(display_config->display));
 
-  Window root_window = RootWindow(display_config->display,
-                                  DefaultScreen(display_config->display));
+  root_window = RootWindow(display_config->display,
+                           DefaultScreen(display_config->display));
 
   for (int i = 0; i < display_config->num_screens; i++) {
     screen_configs[i].window = XCreateSimpleWindow(
@@ -66,34 +108,14 @@ int main(int argc, char *argv[]) {
                     (unsigned char *)&net_wm_window_type, 1);
     XMapWindow(display_config->display, screen_configs[i].window);
   }
+}
 
-  initialize_graphics();
-  XFixesHideCursor(display_config->display, root_window);
-  XGrabKeyboard(display_config->display,
-                DefaultRootWindow(display_config->display), True, GrabModeAsync,
-                GrabModeAsync, CurrentTime);
-
-  pthread_t my_thread; // Declare a thread object
-  int thread_create_result;
-
-  // Create a thread
-  thread_create_result = pthread_create(&my_thread, NULL, date_loop, NULL);
-
-  // Check if the thread creation was successful
-  if (thread_create_result != 0) {
-    fprintf(stderr, "Failed to create thread.\n");
-    return 1;
-  }
-
-  while (running) {
-    XNextEvent(display_config->display, &event);
-    if (event.type == Expose) {
-      draw_graphics();
-    } else if (event.type == KeyPress) {
-      handle_keypress(event.xkey);
-    }
-  }
-
+/**
+ * Performs clean-up tasks.
+ * This function is responsible for cleaning up any resources or performing any
+ * necessary clean-up tasks before the program terminates.
+ */
+void cleanUp() {
   // Clean up
   for (int i = 0; i < display_config->num_screens; i++) {
     cairo_font_face_t *overlay_font_face =
@@ -111,8 +133,7 @@ int main(int argc, char *argv[]) {
 
   XCloseDisplay(display_config->display);
 
-  pthread_join(my_thread, NULL);
-  return 0;
+  pthread_join(date_thread, NULL);
 }
 
 /**
@@ -142,21 +163,6 @@ void handle_keypress(XKeyEvent keyEvent) {
     current_input_index++;
   }
   draw_graphics();
-}
-
-/**
- * Converts a hexadecimal color code to a pixel value.
- *
- * @param hex_color The hexadecimal color code to convert.
- * @param screen_num The screen number to convert the color for.
- * @return The pixel value corresponding to the given color code.
- */
-unsigned long hex_color_to_pixel(char *hex_color, int screen_num) {
-  XColor color;
-  Colormap colormap = DefaultColormap(display_config->display, screen_num);
-  XParseColor(display_config->display, colormap, hex_color, &color);
-  XAllocColor(display_config->display, colormap, &color);
-  return color.pixel;
 }
 
 void *date_loop(void *arg) {

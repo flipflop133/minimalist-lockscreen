@@ -13,5 +13,8 @@
 # Ignore vscode dir
 .vscode/
 
+# Ignore cache dir
+.cache/
+
 # Ignore CMAKE build directory
 build/

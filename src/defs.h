@@ -4,10 +4,12 @@
 #include <X11/extensions/Xinerama.h>
 #include <cairo/cairo.h>
 #include <security/pam_appl.h>
+
 // Function declarations
-unsigned long hex_color_to_pixel(char *hex_color, int screen_num);
 void handle_keypress(XKeyEvent keyEvent);
 void *date_loop(void *arg);
+void initialize_windows();
+void cleanUp();
 
 // Macro definitions
 
