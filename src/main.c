@@ -1,6 +1,7 @@
 #include "args.h"
 #include "defs.h"
 #include "graphics/graphics.h"
+#include "graphics/modules/date.h"
 #include "pam.h"
 #include "utils.h"
 #include <X11/X.h>
@@ -163,12 +164,4 @@ void handle_keypress(XKeyEvent keyEvent) {
     current_input_index++;
   }
   draw_graphics();
-}
-
-void *date_loop(void *arg) {
-  while (running) {
-    draw_graphics();
-    sleep(1);
-  }
-  return NULL;
 }

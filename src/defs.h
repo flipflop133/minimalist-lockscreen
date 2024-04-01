@@ -7,7 +7,6 @@
 
 // Function declarations
 void handle_keypress(XKeyEvent keyEvent);
-void *date_loop(void *arg);
 void initialize_windows();
 void cleanUp();
 
@@ -40,4 +39,5 @@ extern struct ScreenConfig screen_configs[128]; // TODO : use a dynamic array
 extern struct DisplayConfig *display_config;
 extern int current_input_index;
 extern int password_is_wrong;
+extern int running;
 #endif
