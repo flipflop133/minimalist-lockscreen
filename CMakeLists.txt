@@ -30,6 +30,7 @@ target_link_libraries(minimalist-lockscreen PRIVATE
     cairo
     Xfixes
     Xss
+    Xext
 )
 
 # Set compiler flags for release build
