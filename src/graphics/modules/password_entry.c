@@ -1,4 +1,4 @@
-#include "../../defs.h"
+#include "../../lockscreen.h"
 #include "../graphics.h"
 #include <cairo/cairo.h>
 #include <math.h>

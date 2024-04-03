@@ -1,6 +1,6 @@
 #include "utils.h"
-#include "defs.h"
 #include "graphics/graphics.h"
+#include "lockscreen.h"
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <cairo/cairo.h>

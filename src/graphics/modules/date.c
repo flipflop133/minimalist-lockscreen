@@ -1,4 +1,4 @@
-#include "../../defs.h"
+#include "../../lockscreen.h"
 #include "../graphics.h"
 #include <cairo/cairo.h>
 #include <time.h>
@@ -12,7 +12,7 @@ struct date_data {
 void *date_loop(void *arg) {
   time_t t;
   struct tm *time_props;
-  while (running) {
+  while (lockscreen_running) {
     t = time(&t);
     time_props = localtime(&t);
     strftime(date_data.date, 64, "%A, %d %B", time_props);

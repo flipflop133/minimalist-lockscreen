@@ -3,6 +3,7 @@ project(minimalist-lockscreen)
 
 add_executable(minimalist-lockscreen
  src/main.c
+ src/lockscreen.c
  src/utils.c
  src/pam.c
  src/args.c
@@ -15,6 +16,7 @@ add_executable(minimalist-lockscreen
 target_include_directories(minimalist-lockscreen PRIVATE
     /usr/include
     /usr/include/freetype2/
+    /usr/include/X11/extensions/
 )
 
 target_link_libraries(minimalist-lockscreen PRIVATE
@@ -27,6 +29,7 @@ target_link_libraries(minimalist-lockscreen PRIVATE
     pam
     cairo
     Xfixes
+    Xss
 )
 
 # Set compiler flags for release build
