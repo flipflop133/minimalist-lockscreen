@@ -25,22 +25,26 @@ int main(int argc, char *argv[]) {
   CARD16 standby, suspend, off;
   DPMSGetTimeouts(display_config->display, &standby, &suspend, &off);
 
-  int timeout;
-  XGetScreenSaver(display_config->display, &timeout, NULL, NULL, NULL);
+  int timeout, interval, prefer_blanking, allow_exposures;
+  XGetScreenSaver(display_config->display, &timeout, &interval,
+                  &prefer_blanking, &allow_exposures);
 
   pthread_t screen_standby_thread;
   pthread_t screen_suspend_thread;
   pthread_t screen_off_thread;
+  pthread_t screensaver_thread;
   pthread_t sleep_timeout_thread;
 
   pthread_create(&screen_standby_thread, NULL, screen_standby_loop, &standby);
   pthread_create(&screen_suspend_thread, NULL, screen_suspend_loop, &suspend);
   pthread_create(&screen_off_thread, NULL, screen_off_loop, &off);
-  pthread_create(&sleep_timeout_thread, NULL, sleep_timeout_loop, &timeout);
+  pthread_create(&screensaver_thread, NULL, screensaver_loop, &timeout);
+  pthread_create(&sleep_timeout_thread, NULL, sleep_timeout_loop, NULL);
 
   pthread_join(screen_standby_thread, NULL);
   pthread_join(screen_suspend_thread, NULL);
   pthread_join(screen_off_thread, NULL);
+  pthread_join(screensaver_thread, NULL);
   pthread_join(sleep_timeout_thread, NULL);
   XCloseDisplay(display_config->display);
   return 0;
@@ -51,12 +55,12 @@ void *screen_standby_loop(void *arg) {
     while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
       sleep(1);
     }
-    system("xset dpms force standby");
-    if (!lockscreen_running)
-      lockscreen();
-    while (lockscreen_running) {
-      sleep(1);
-    }
+    CARD16 power_level;
+    Bool state;
+    DPMSInfo(display_config->display, &power_level, &state);
+    if (!(state == DPMSModeOn))
+      system("xset dpms force standby");
+    sleep(1);
   }
   return NULL;
 }
@@ -66,12 +70,12 @@ void *screen_suspend_loop(void *arg) {
     while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
       sleep(1);
     }
-    system("xset dpms force suspend");
-    if (!lockscreen_running)
-      lockscreen();
-    while (lockscreen_running) {
-      sleep(1);
-    }
+    CARD16 power_level;
+    Bool state;
+    DPMSInfo(display_config->display, &power_level, &state);
+    if (!(state == DPMSModeOn))
+      system("xset dpms force suspend");
+    sleep(1);
   }
   return NULL;
 }
@@ -81,8 +85,25 @@ void *screen_off_loop(void *arg) {
     while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
       sleep(1);
     }
-    system("xset dpms force off");
-    if (!lockscreen_running)
+    CARD16 power_level;
+    Bool state;
+    DPMSInfo(display_config->display, &power_level, &state);
+    if (!(state == DPMSModeOn))
+      system("xset dpms force off");
+    sleep(1);
+  }
+  return NULL;
+}
+
+void *screensaver_loop(void *arg) {
+  while (running) {
+    while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
+      sleep(1);
+    }
+    int timeout, interval, prefer_blanking, allow_exposures;
+    XGetScreenSaver(display_config->display, &timeout, &interval,
+                    &prefer_blanking, &allow_exposures);
+    if (!lockscreen_running && timeout != 0)
       lockscreen();
     while (lockscreen_running) {
       sleep(1);
@@ -91,17 +112,19 @@ void *screen_off_loop(void *arg) {
   return NULL;
 }
 
+#define SUSPEND_TIMEOUT 600
 void *sleep_timeout_loop(void *arg) {
   while (running) {
-    while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
+    while (retrieve_idle_time() < SUSPEND_TIMEOUT * 1000) {
       sleep(1);
     }
-    CARD16 state;
-    DPMSInfo(display_config->display, &state, NULL);
+    CARD16 power_level;
+    Bool state;
+    DPMSInfo(display_config->display, &power_level, &state);
+    while (!lockscreen_running)
+      sleep(1); // Wait for lockscreen to start before suspending
     if (!is_player_running() && !(state == DPMSModeOn))
       system("systemctl suspend");
-    if (!lockscreen_running)
-      lockscreen();
     while (lockscreen_running) {
       sleep(1);
     }
