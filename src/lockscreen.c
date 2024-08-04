@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 
 struct DisplayConfig *display_config;
 struct ScreenConfig screen_configs[128]; // TODO : use a dynamic array
@@ -26,12 +27,14 @@ int lockscreen_running = 0;
 pthread_t date_thread;
 Window root_window;
 
-int lockscreen(void) {
+int lockscreen(void)
+{
   lockscreen_running = 1;
 
   // Retrieve user database
   pw = getpwnam(getlogin());
-  if (pw == NULL) {
+  if (pw == NULL)
+  {
     return 1;
   }
 
@@ -47,18 +50,23 @@ int lockscreen(void) {
   // Create a thread to update the date and time
   int thread_create_result;
   thread_create_result = pthread_create(&date_thread, NULL, date_loop, NULL);
-  if (thread_create_result != 0) {
+  if (thread_create_result != 0)
+  {
     fprintf(stderr, "Failed to create thread.\n");
     return 1;
   }
 
   // Main event loop
   XEvent event;
-  while (lockscreen_running) {
+  while (lockscreen_running)
+  {
     XNextEvent(display_config->display, &event);
-    if (event.type == Expose) {
+    if (event.type == Expose)
+    {
       draw_graphics();
-    } else if (event.type == KeyPress) {
+    }
+    else if (event.type == KeyPress)
+    {
       handle_keypress(event.xkey);
     }
   }
@@ -71,8 +79,10 @@ int lockscreen(void) {
 /**
  * Initializes the windows for the application.
  */
-void initialize_windows() {
-  if (display_config->display == NULL) {
+void initialize_windows()
+{
+  if (display_config->display == NULL)
+  {
     fprintf(stderr, "Cannot open display\n");
     exit(1);
   }
@@ -84,7 +94,8 @@ void initialize_windows() {
   root_window = RootWindow(display_config->display,
                            DefaultScreen(display_config->display));
 
-  for (int i = 0; i < display_config->num_screens; i++) {
+  for (int i = 0; i < display_config->num_screens; i++)
+  {
     screen_configs[i].window = XCreateSimpleWindow(
         display_config->display, root_window,
         display_config->screen_info[i].x_org, 0,
@@ -112,11 +123,13 @@ void initialize_windows() {
  * This function is responsible for cleaning up any resources or performing any
  * necessary clean-up tasks before the program terminates.
  */
-void cleanUp() {
+void cleanUp()
+{
   // Clean up
   XFixesShowCursor(display_config->display, root_window);
   XUngrabKeyboard(display_config->display, CurrentTime);
-  for (int i = 0; i < display_config->num_screens; i++) {
+  for (int i = 0; i < display_config->num_screens; i++)
+  {
     cairo_font_face_t *overlay_font_face =
         cairo_get_font_face(screen_configs[i].overlay_buffer);
     if (overlay_font_face != NULL)
@@ -139,26 +152,40 @@ void cleanUp() {
  *
  * @param keyEvent The XKeyEvent representing the key press event.
  */
-void handle_keypress(XKeyEvent keyEvent) {
+void handle_keypress(XKeyEvent keyEvent)
+{
   password_is_wrong = 0;
-  if (keyEvent.keycode == 22) {
-    if (current_input_index != 0) {
+  if (keyEvent.keycode == 22)
+  {
+    if (current_input_index != 0)
+    {
       current_input_index--;
       current_input[current_input_index] = '\0';
     }
-  } else if (keyEvent.keycode == 36) {
-    if (auth_pam(current_input, pw->pw_name) == 0) {
+  }
+  else if (keyEvent.keycode == 36)
+  {
+    if (auth_pam(current_input, pw->pw_name) == 0)
+    {
       lockscreen_running = 0;
-    } else {
+    }
+    else
+    {
       password_is_wrong = 1;
     }
     current_input_index = 0;
     current_input[0] = '\0';
-  } else {
+  }
+  else
+  {
     char event_char;
-    XLookupString(&keyEvent, &event_char, 1, 0, NULL);
-    current_input[current_input_index] = event_char;
-    current_input_index++;
+    KeySym keySym;
+    XLookupString(&keyEvent, &event_char, 1, &keySym, NULL);
+    if (isprint(event_char))
+    {
+      current_input[current_input_index] = event_char;
+      current_input_index++;
+    }
   }
   draw_graphics();
 }

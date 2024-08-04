@@ -16,6 +16,10 @@ void initialize_graphics() {
   display_config->image_surface =
       cairo_image_surface_create_from_png(retrieve_command_arg("--image"));
 
+  if (display_config->image_surface == NULL) {
+    fprintf(stderr, "Unable to load image\n");
+    return;
+  }
   if (cairo_surface_status(display_config->image_surface) !=
       CAIRO_STATUS_SUCCESS) {
     fprintf(stderr, "Unable to load image\n");
