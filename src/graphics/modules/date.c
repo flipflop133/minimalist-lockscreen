@@ -44,6 +44,13 @@ void draw_clock(int screen_num) {
                 ((double)display_config->screen_info[screen_num].width / 2) -
                     (date_extents.width / 2) - (date_extents.x_bearing),
                 ((double)display_config->screen_info[screen_num].height / 5));
+
+  int x = ((double)display_config->screen_info[screen_num].width / 2) -
+          (date_extents.width / 2) - (date_extents.x_bearing) + date_extents.x_bearing;
+  int y = ((double)display_config->screen_info[screen_num].height / 5) + date_extents.y_bearing;
+  int width = date_extents.width;
+  int height = date_extents.height;
+  repaint_background_at(x, y, width, height, screen_num);
   cairo_show_text(screen_configs[screen_num].overlay_buffer, date_data.date);
 
   // Display clock
@@ -57,5 +64,13 @@ void draw_clock(int screen_num) {
                     (clock_extents.width / 2) - (clock_extents.x_bearing),
                 ((double)display_config->screen_info[screen_num].height / 5) +
                     date_extents.height + clock_extents.height);
+
+  x = ((double)display_config->screen_info[screen_num].width / 2) -
+      (clock_extents.width / 2) - (clock_extents.x_bearing) + clock_extents.x_bearing;
+  y = ((double)display_config->screen_info[screen_num].height / 5) +
+      date_extents.height + clock_extents.height + clock_extents.y_bearing;
+  width = clock_extents.width;
+  height = clock_extents.height;
+  repaint_background_at(x, y, width, height, screen_num);
   cairo_show_text(screen_configs[screen_num].overlay_buffer, date_data.clock);
 }

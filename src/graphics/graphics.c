@@ -89,6 +89,8 @@ void initialize_graphics() {
     determine_text_color(display_config->image_surface,
                          display_config->screen_info[screen_num].width,
                          display_config->screen_info[screen_num].height);
+    cairo_paint(
+        screen_configs[screen_num].background_buffer); // Draw background image
   }
   draw_graphics();
 }
@@ -99,9 +101,8 @@ void initialize_graphics() {
 void draw_graphics() {
   pthread_mutex_lock(&mutex);
   for (int screen_num = 0; screen_num < display_config->num_screens;
-       screen_num++) {
-    cairo_paint(
-        screen_configs[screen_num].background_buffer); // Draw background image
+       screen_num++)
+  {
     draw_password_entry(screen_num);
     draw_clock(screen_num);
     cairo_set_source_surface(screen_configs[screen_num].screen_buffer,
@@ -110,4 +111,22 @@ void draw_graphics() {
     cairo_paint(screen_configs[screen_num].screen_buffer);
   }
   pthread_mutex_unlock(&mutex);
+}
+
+/**
+ * Repaints the background at the specified coordinates and dimensions on the given screen.
+ * This avoids the need to repaint the entire background when only a small portion of it needs to be updated.
+ *
+ * @param x The x-coordinate of the top-left corner of the background.
+ * @param y The y-coordinate of the top-left corner of the background.
+ * @param width The width of the background.
+ * @param height The height of the background.
+ * @param screen_num The screen number on which to repaint the background.
+ */
+void repaint_background_at(int x, int y, int width, int height, int screen_num)
+{
+  cairo_reset_clip(screen_configs[screen_num].background_buffer);
+  cairo_rectangle(screen_configs[screen_num].background_buffer, x, y, width, height);
+  cairo_clip(screen_configs[screen_num].background_buffer);
+  cairo_paint(screen_configs[screen_num].background_buffer);
 }

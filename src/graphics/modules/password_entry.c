@@ -27,6 +27,8 @@ void draw_password_entry(int screen_num) {
   double y =
       (double)display_config->screen_info[screen_num].height / 2 - (height / 2);
 
+  repaint_background_at(x, y, width, height, screen_num);
+
   double radius = 20.0;
   cairo_move_to(screen_configs[screen_num].overlay_buffer, x, y);
 
