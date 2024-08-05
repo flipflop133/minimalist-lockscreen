@@ -6,9 +6,7 @@
 #include <cairo/cairo.h>
 #include <pthread.h>
 #include <stdio.h>
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
+#include "../defs.h"
 /**
  * Initializes the graphics for the lockscreen.
  */
@@ -57,7 +55,8 @@ void initialize_graphics() {
     cairo_font_face_t *font_face = cairo_toy_font_face_create(
         "JetBrainsMono NF", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_face(screen_configs[screen_num].overlay_buffer, font_face);
-    cairo_font_face_destroy(font_face);
+    if (font_face != NULL)
+      cairo_font_face_destroy(font_face);
 
     screen_configs[screen_num].pattern =
         cairo_pattern_create_for_surface(display_config->image_surface);

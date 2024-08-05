@@ -125,22 +125,25 @@ void initialize_windows()
  */
 void cleanUp()
 {
+
   // Clean up
   XFixesShowCursor(display_config->display, root_window);
   XUngrabKeyboard(display_config->display, CurrentTime);
-  for (int i = 0; i < display_config->num_screens; i++)
+  for (int screen_num = 0; screen_num < display_config->num_screens;
+       screen_num++)
   {
     cairo_font_face_t *overlay_font_face =
-        cairo_get_font_face(screen_configs[i].overlay_buffer);
+        cairo_get_font_face(screen_configs[screen_num].overlay_buffer);
     if (overlay_font_face != NULL)
       cairo_font_face_destroy(overlay_font_face);
-    cairo_destroy(screen_configs[i].overlay_buffer);
-    cairo_destroy(screen_configs[i].background_buffer);
-    cairo_pattern_destroy(screen_configs[i].pattern);
-    cairo_surface_destroy(screen_configs[i].surface);
-    cairo_surface_destroy(screen_configs[i].off_screen_buffer);
-    cairo_destroy(screen_configs[i].screen_buffer);
-    XDestroyWindow(display_config->display, screen_configs[i].window);
+    cairo_destroy(screen_configs[screen_num].overlay_buffer);
+    cairo_destroy(screen_configs[screen_num].background_buffer);
+    cairo_destroy(screen_configs[screen_num].screen_buffer);
+    cairo_pattern_destroy(screen_configs[screen_num].pattern);
+    cairo_surface_destroy(screen_configs[screen_num].surface);
+    cairo_surface_destroy(screen_configs[screen_num].off_screen_buffer);
+
+    XDestroyWindow(display_config->display, screen_configs[screen_num].window);
   }
   cairo_surface_destroy(display_config->image_surface);
 
