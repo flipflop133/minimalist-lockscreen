@@ -15,6 +15,7 @@
 
 int running = 1;
 int cafeine = 0;
+XScreenSaverInfo *ssi;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int main(int argc, char *argv[]) {
   parse_arguments(argc, argv);
@@ -23,28 +24,31 @@ int main(int argc, char *argv[]) {
 
   signal(SIGINT, main_cleanup);
   signal(SIGUSR1, signal_handler);
-  signal(SIGUSR2, cafeine_handler);
-
+  update_xscreensaver_info();
   int timeout, interval, prefer_blanking, allow_exposures;
   XGetScreenSaver(display_config->display, &timeout, &interval,
                   &prefer_blanking, &allow_exposures);
 
+  pthread_t screensaver_info_thread;
   pthread_t screensaver_thread;
   pthread_t sleep_timeout_thread;
 
+  pthread_create(&screensaver_info_thread, NULL, update_xscreensaver_info_loop, NULL);
   pthread_create(&screensaver_thread, NULL, screensaver_loop, &timeout);
   pthread_create(&sleep_timeout_thread, NULL, sleep_timeout_loop, NULL);
 
   pthread_join(screensaver_thread, NULL);
   pthread_join(sleep_timeout_thread, NULL);
   pthread_mutex_destroy(&mutex);
+  XFree(ssi);
   XCloseDisplay(display_config->display);
   return 0;
 }
 
 void *screensaver_loop(void *arg) {
   while (running) {
-    while (retrieve_idle_time() < *((CARD16 *)arg) * 1000) {
+    while (ssi->idle < *((CARD16 *)arg) * 1000 || ssi->state == ScreenSaverOff)
+    {
       if (!running)
       {
         break;
@@ -71,7 +75,7 @@ void *screensaver_loop(void *arg) {
 #define SUSPEND_TIMEOUT 600
 void *sleep_timeout_loop(void *arg) {
   while (running) {
-    while ((retrieve_idle_time() < SUSPEND_TIMEOUT * 1000) && !cafeine)
+    while ((ssi->idle < SUSPEND_TIMEOUT * 1000) && !cafeine)
     {
       if (!running)
       {
@@ -97,17 +101,21 @@ void *sleep_timeout_loop(void *arg) {
   return NULL;
 }
 
-long retrieve_idle_time() {
-  pthread_mutex_lock(&mutex);
+void *update_xscreensaver_info_loop(void *arg)
+{
+  while (running)
+  {
+    update_xscreensaver_info();
+    sleep(1);
+  }
+}
+
+void update_xscreensaver_info()
+{
   unsigned long idle = 0;
-  XScreenSaverInfo *ssi;
   ssi = XScreenSaverAllocInfo();
   XScreenSaverQueryInfo(display_config->display,
                         DefaultRootWindow(display_config->display), ssi);
-  idle = ssi->idle;
-  XFree(ssi);
-  pthread_mutex_unlock(&mutex);
-  return idle;
 }
 
 void main_cleanup(int signal)
@@ -119,18 +127,6 @@ void main_cleanup(int signal)
 void signal_handler(int signal) {
   if (!lockscreen_running)
     lockscreen();
-}
-
-void cafeine_handler(int signal)
-{
-  if (cafeine == 0)
-  {
-    cafeine = 1;
-  }
-  else
-  {
-    cafeine = 0;
-  }
 }
 
 int is_player_running() {
