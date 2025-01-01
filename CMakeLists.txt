@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(minimalist-lockscreen)
 
+# Set the C standard to C23
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
 add_executable(minimalist-lockscreen
  src/main.c
  src/lockscreen.c
@@ -46,3 +50,10 @@ if(NOT iwyu_path)
 else()
   set_property(TARGET minimalist-lockscreen PROPERTY C_INCLUDE_WHAT_YOU_USE ${iwyu_path})
 endif()
+
+# Print the current compiler information
+message(STATUS "CMake version: ${CMAKE_VERSION}")
+message(STATUS "CMake system name: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "CMake system version: ${CMAKE_SYSTEM_VERSION}")
+message(STATUS "CMake C compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "CMake CXX compiler: ${CMAKE_CXX_COMPILER}")

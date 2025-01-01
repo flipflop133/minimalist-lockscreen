@@ -9,7 +9,7 @@ struct date_data {
   char clock[32];
 } date_data;
 
-void *date_loop(void *arg) {
+void *date_loop(void *arg __attribute__((unused))) {
   time_t t;
   struct tm *time_props;
   while (lockscreen_running) {
