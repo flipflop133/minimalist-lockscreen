@@ -1,11 +1,21 @@
 #ifndef DEFS_H
 #define DEFS_H
+
 #include <pthread.h>
-void *screensaver_loop(void *arg);
-void *sleep_timeout_loop(void *arg);
-void *update_xscreensaver_info_loop(void *arg);
-void main_cleanup(int signal);
-void lockscreen_handler(int signal);
-int is_player_running();
+
+/**
+ * @file defs.h
+ * @brief Contains declarations for screensaver-related thread functions,
+ *        signal handlers, and utility checks.
+ */
+
+/* ------------------------------------------------------------------------- */
+/* Global Variables                                                          */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * @brief Mutex used for thread-safety in certain shared resources.
+ */
 extern pthread_mutex_t mutex;
-#endif
+
+#endif /* DEFS_H */
