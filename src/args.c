@@ -33,6 +33,9 @@ void parse_arguments(int argc, char *argv[]) {
     if (strcmp(argv[i], "--image") == 0) {
       current->value = malloc(strlen(argv[++i]) + 1);
       strcpy(current->value, argv[i]);
+    } else if (strcmp(argv[i], "--suspend") == 0) {
+      current->value = malloc(strlen(argv[++i]) + 1);
+      strcpy(current->value, argv[i]);
     }
     if (first) {
       first = 0;

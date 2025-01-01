@@ -13,8 +13,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define SUSPEND_TIMEOUT 600
-
 volatile int running = 1;
 XScreenSaverInfo *ssi;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -78,7 +76,8 @@ void *screensaver_loop(void *arg) {
 
 void *sleep_timeout_loop(void *arg __attribute__((unused))) {
   while (running) {
-    while ((ssi->idle < SUSPEND_TIMEOUT * 1000) && running) {
+    while (((int)ssi->idle < atoi(retrieve_command_arg("--suspend")) * 1000) &&
+           running) {
       sleep(1);
     }
     if (!running) {

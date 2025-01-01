@@ -1,6 +1,8 @@
 # Minimalist Lockscreen [![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/flipflop133/minimalist-lockscreen/makefile.yml)](https://github.com/flipflop133/minimalist-lockscreen/actions)
+
 ![preview](https://github.com/flipflop133/minimalist-lockscreen/assets/48946818/c769b087-acac-4729-bb36-7a4d9008b677)
 [Image source](https://unsplash.com/photos/person-sitting-inside-restaurant-zlABb6Gke24)
+
 ## Building
 
 ### Install dependencies
@@ -38,7 +40,40 @@ Cleaning:
 ## Running
 
 ```bash
-./build/minimalist-Lockscreen --image /path/to/image.png
+./build/minimalist-Lockscreen --image /path/to/image.png --suspend 600
+```
+
+- `--image` is the path to the image you want to use as a wallpaper.
+- `--suspend` is the time in seconds after which the computer will be suspended (systemctl suspend is called).
+
+## Controlling the lockscreen
+
+The application listen to dpms and Screensaver events to lock the screen when the screen is turned off and the screensaver is activated if screensaver is enabled after the screensaver timeout.
+
+### Controlling screen power
+
+```sh
+xset dpms 300 360 420 # Standby Suspend Off
+```
+
+### Screensaver timeout
+
+```sh
+xset s on
+xset s 330 0
+```
+
+## Disable screen locking and screen saver
+
+```bash
+xset s off
+xset -dpms
+```
+
+## You can check your current settings with
+
+```sh
+xset q
 ```
 
 ## TODO (sorted by priority)
