@@ -100,22 +100,43 @@ static void cleanUp(void) {
   /* Destroy Cairo objects and X11 windows. */
   for (int screen_num = 0; screen_num < display_config->num_screens;
        screen_num++) {
-    cairo_font_face_t *overlay_font_face =
-        cairo_get_font_face(screen_configs[screen_num].overlay_buffer);
-    if (overlay_font_face != NULL) {
-      cairo_font_face_destroy(overlay_font_face);
+    if (screen_configs[screen_num].pattern) {
+      cairo_pattern_destroy(screen_configs[screen_num].pattern);
+      screen_configs[screen_num].pattern = NULL;
     }
-    cairo_destroy(screen_configs[screen_num].overlay_buffer);
-    cairo_destroy(screen_configs[screen_num].background_buffer);
-    cairo_destroy(screen_configs[screen_num].screen_buffer);
-    cairo_pattern_destroy(screen_configs[screen_num].pattern);
-    cairo_surface_destroy(screen_configs[screen_num].surface);
-    cairo_surface_destroy(screen_configs[screen_num].off_screen_buffer);
+
+    if (screen_configs[screen_num].overlay_buffer) {
+      cairo_destroy(screen_configs[screen_num].overlay_buffer);
+      screen_configs[screen_num].overlay_buffer = NULL;
+    }
+
+    if (screen_configs[screen_num].background_buffer) {
+      cairo_destroy(screen_configs[screen_num].background_buffer);
+      screen_configs[screen_num].background_buffer = NULL;
+    }
+
+    if (screen_configs[screen_num].screen_buffer) {
+      cairo_destroy(screen_configs[screen_num].screen_buffer);
+      screen_configs[screen_num].screen_buffer = NULL;
+    }
+
+    if (screen_configs[screen_num].off_screen_buffer) {
+      cairo_surface_destroy(screen_configs[screen_num].off_screen_buffer);
+      screen_configs[screen_num].off_screen_buffer = NULL;
+    }
+
+    if (screen_configs[screen_num].surface) {
+      cairo_surface_destroy(screen_configs[screen_num].surface);
+      screen_configs[screen_num].surface = NULL;
+    }
 
     XDestroyWindow(display_config->display, screen_configs[screen_num].window);
   }
 
-  cairo_surface_destroy(display_config->image_surface);
+  if (display_config->image_surface) {
+    cairo_surface_destroy(display_config->image_surface);
+    display_config->image_surface = NULL;
+  }
 
   /* Wait for the date update thread to finish. */
   pthread_join(date_thread, NULL);

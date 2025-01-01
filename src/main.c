@@ -10,6 +10,8 @@
 #include <X11/extensions/dpms.h>
 #include <X11/extensions/dpmsconst.h>
 #include <X11/extensions/scrnsaver.h>
+#include <cairo/cairo.h>
+#include <fontconfig/fontconfig.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -45,7 +47,8 @@ int main(int argc, char *argv[]) {
   parse_arguments(argc, argv);
 
   /* Allocate and initialize DisplayConfig. */
-  display_config = (struct DisplayConfig *)malloc(sizeof(struct DisplayConfig));
+  display_config =
+      (struct DisplayConfig *)calloc(1, sizeof(struct DisplayConfig));
   if (!display_config) {
     fprintf(stderr, "Failed to allocate display_config.\n");
     return EXIT_FAILURE;
@@ -88,9 +91,30 @@ int main(int argc, char *argv[]) {
   pthread_join(sleep_timeout_thread, NULL);
 
   /* Clean up shared resources. */
+  if (display_config->screen_info) {
+    XFree(display_config->screen_info);
+    display_config->screen_info = NULL;
+  }
   pthread_mutex_destroy(&mutex);
-  XFree(ssi);
+
+  if (ssi) {
+    XFree(ssi);
+    ssi = NULL;
+  }
+
+  XSync(display_config->display, False);
+
+  /* Force X to destroy all client resources associated with this process: */
+  XSetCloseDownMode(display_config->display, DestroyAll);
+
   XCloseDisplay(display_config->display);
+
+  /* Finalize Fontconfig to release leftover patterns and caches. */
+  FcFini();
+
+  /* Force Cairo to drop any static data it might be holding. */
+  cairo_debug_reset_static_data();
+
   free(display_config);
 
   return 0;
@@ -147,7 +171,6 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
   while (running) {
     char *suspend_str = retrieve_command_arg("--suspend");
     if (!suspend_str) {
-      /* No suspend argument specified; just pause the thread. */
       sleep(1);
       continue;
     }
@@ -168,12 +191,10 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
       sleep(1);
     }
 
-    /* If no media player is running, suspend the system. */
     if (!is_player_running() && running) {
       system("systemctl suspend");
     }
 
-    /* Wait until lockscreen is deactivated again. */
     while (lockscreen_running && running) {
       sleep(1);
     }

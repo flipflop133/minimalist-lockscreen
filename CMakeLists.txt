@@ -42,6 +42,7 @@ target_link_libraries(minimalist-lockscreen PRIVATE
     Xss
     Xext
     m
+    fontconfig
 )
 
 # Apply flags based on the build type
