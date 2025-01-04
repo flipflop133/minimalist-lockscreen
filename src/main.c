@@ -4,6 +4,7 @@
  */
 
 #include "args.h"
+#include "graphics/graphics.h"
 #include "lockscreen.h"
 #include <X11/Xlib.h>
 #include <X11/Xmd.h>
@@ -60,6 +61,9 @@ int main(int argc, char *argv[]) {
     free(display_config);
     return EXIT_FAILURE;
   }
+
+  initialize_windows();
+  initialize_graphics();
 
   /* Set up signal handlers. */
   signal(SIGINT, main_cleanup);

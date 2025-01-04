@@ -7,13 +7,14 @@
 
 #include "graphics.h"
 #include "../args.h"
+#include "../defs.h"
 #include "../lockscreen.h"
 #include <X11/Xlib.h>
 #include <cairo/cairo-xlib.h>
 #include <cairo/cairo.h>
+#include <malloc.h>
 #include <pthread.h>
 #include <stdio.h>
-#include "../defs.h"
 
 /* ------------------------------------------------------------------------- */
 /* Forward Declarations                                                      */
@@ -65,11 +66,13 @@ static cairo_surface_t *load_background_image(void) {
  * @return 0 on success, non-zero on failure.
  */
 static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
-  /* Retrieve the visual for the default screen (using X11). */
   screen_configs[screen_num].visual = DefaultVisual(
       display_config->display, DefaultScreen(display_config->display));
 
-  /* Create a Cairo surface bound to the Xlib window for this screen. */
+  /*
+   * The Xlib-backed surface for the *on-screen* drawing
+   * tied to this screen's window.
+   */
   screen_configs[screen_num].surface = cairo_xlib_surface_create(
       display_config->display, screen_configs[screen_num].window,
       screen_configs[screen_num].visual,
@@ -82,39 +85,35 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
     return -1;
   }
 
-  /* Create the main context for final on-screen drawing. */
+  /* Main on-screen context. */
   screen_configs[screen_num].screen_buffer =
       cairo_create(screen_configs[screen_num].surface);
 
-  /* Create an off-screen surface (with alpha) for overlay layering. */
+  /* Off-screen surface for layering (with alpha). */
   screen_configs[screen_num].off_screen_buffer = cairo_surface_create_similar(
       screen_configs[screen_num].surface, CAIRO_CONTENT_COLOR_ALPHA,
       display_config->screen_info[screen_num].width,
       display_config->screen_info[screen_num].height);
 
-  /* Create two separate contexts (overlay & background) on the off-screen
-   * surface. */
+  /* Two contexts on the off-screen: overlay and background. */
   screen_configs[screen_num].overlay_buffer =
       cairo_create(screen_configs[screen_num].off_screen_buffer);
-
   screen_configs[screen_num].background_buffer =
       cairo_create(screen_configs[screen_num].off_screen_buffer);
 
-  /* Set a font face on the overlay context. */
+  /* Set a font face on overlay context (just an example). */
   cairo_font_face_t *font_face = cairo_toy_font_face_create(
       "JetBrainsMono NF", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_face(screen_configs[screen_num].overlay_buffer, font_face);
-  if (font_face) {
-    /* Once set, the cairo context holds its own reference;
-     * we can safely destroy this reference. */
-    cairo_font_face_destroy(font_face);
-  }
+  cairo_font_face_destroy(font_face); // the context holds its own reference
 
-  /* Create a pattern for the background from the loaded image surface. */
-  screen_configs[screen_num].pattern =
-      cairo_pattern_create_for_surface(image_surface);
-  cairo_surface_destroy(image_surface);
-  /* Determine how to scale the image so it fits the screen. */
+  /*
+   *  Create a pattern from the loaded image surface, scale to fit,
+   *  paint onto background_buffer, then free the pattern.
+   */
+  cairo_pattern_t *pattern = cairo_pattern_create_for_surface(image_surface);
+
+  /* Calculate scaling so the image fits the screen. */
   double image_width = (double)cairo_image_surface_get_width(image_surface);
   double image_height = (double)cairo_image_surface_get_height(image_surface);
   double screen_width = (double)display_config->screen_info[screen_num].width;
@@ -124,41 +123,47 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
   double y_scale = image_height / screen_height;
   double scale_factor = (x_scale < y_scale) ? x_scale : y_scale;
 
-  /* Apply a scale matrix to the pattern to ensure the image fits. */
+  /* Invert the scale factor so we scale the pattern down to the screen size.
+   */
   cairo_matrix_t matrix;
   cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
-  cairo_pattern_set_matrix(screen_configs[screen_num].pattern, &matrix);
+  cairo_pattern_set_matrix(pattern, &matrix);
 
-  /* Use the pattern as the source on the background context. */
-  cairo_set_source(screen_configs[screen_num].background_buffer,
-                   screen_configs[screen_num].pattern);
+  /* Paint background once onto background_buffer. */
+  cairo_set_source(screen_configs[screen_num].background_buffer, pattern);
+  cairo_paint(screen_configs[screen_num].background_buffer);
 
-  /* Determine text color based on the average brightness of the image. */
+  /* We no longer need the pattern once painted. */
+  cairo_pattern_destroy(pattern);
+
+  /*
+   * Optionally analyze the loaded background for text color.
+   * (If you do it here, it must happen before we destroy 'pattern'
+   * or the 'image_surface' in the caller.)
+   */
   determine_text_color(image_surface,
                        display_config->screen_info[screen_num].width,
                        display_config->screen_info[screen_num].height);
 
-  /* Paint the entire background once. */
-  cairo_paint(screen_configs[screen_num].background_buffer);
-
-  return 0; /* Success */
+  return 0; // Success
 }
 
 /**
  * @brief Initializes graphics resources for the lockscreen.
  *
  * This includes setting up surfaces, contexts, and loading the background
- * image.
+ * image exactly once. After painting each screen's background, we free
+ * the original image surface to reduce memory usage.
  */
 void initialize_graphics(void) {
-  /* Load the background image from the command-line argument. */
+  /* 1) Load the background image from the command-line argument. */
   display_config->image_surface = load_background_image();
   if (!display_config->image_surface) {
     fprintf(stderr, "Failed to load background image.\n");
     return;
   }
 
-  /* Initialize each screen using the loaded image. */
+  /* 2) Initialize each screen using the loaded image. */
   for (int screen_num = 0; screen_num < display_config->num_screens;
        screen_num++) {
     if (setup_screen(screen_num, display_config->image_surface) != 0) {
@@ -167,12 +172,21 @@ void initialize_graphics(void) {
     }
   }
 
-  /* Perform an initial draw to make the lock screen visible. */
+  /*
+   * 3) Now that each screen’s background_buffer has a copy
+   *    of the image, free the original surface to avoid
+   *    keeping large image data in memory.
+   */
+  cairo_surface_destroy(display_config->image_surface);
+  display_config->image_surface = NULL;
+  malloc_trim(0);
+  /* 4) Perform an initial draw to make the lock screen visible. */
   draw_graphics();
 }
 
 /**
- * @brief Draws the lockscreen UI on all screens.
+ * @brief Draw the final screen content by compositing the off-screen buffers
+ *        onto the on-screen surfaces.
  */
 void draw_graphics(void) {
   /* Ensure thread safety if multiple threads call drawing functions. */
@@ -185,7 +199,7 @@ void draw_graphics(void) {
     draw_password_entry(screen_num);
     draw_clock(screen_num);
 
-    /* Then paint the off-screen content onto the main (on-screen) context. */
+    /* Paint the off-screen content onto the on-screen context. */
     cairo_set_source_surface(screen_configs[screen_num].screen_buffer,
                              screen_configs[screen_num].off_screen_buffer, 0,
                              0);
@@ -196,7 +210,8 @@ void draw_graphics(void) {
 }
 
 /**
- * @brief Repaints the background in a specific rectangular region.
+ * @brief Repaints the background in a specific rectangular region by
+ *        copying from the background_buffer.
  *
  * This can be used to "erase" overlays or other elements.
  *

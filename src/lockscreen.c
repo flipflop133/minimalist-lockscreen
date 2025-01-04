@@ -21,6 +21,7 @@
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 /* Global (extern) variables declared in lockscreen.h or elsewhere. */
@@ -35,10 +36,16 @@ int lockscreen_running = 0;
 pthread_t date_thread;
 Window root_window;
 
+/* ------------------------------------------------------------------------- */
+/* Local Prototypes                                                          */
+/* ------------------------------------------------------------------------- */
+static void cleanUpLockscreen(void);
+static void handle_keypress(XKeyEvent key_event);
+
 /**
  * @brief Initializes the X11 windows for the lockscreen.
  */
-static void initialize_windows(void) {
+void initialize_windows(void) {
   if (display_config->display == NULL) {
     fprintf(stderr, "Cannot open display.\n");
     exit(EXIT_FAILURE);
@@ -83,59 +90,7 @@ static void initialize_windows(void) {
     XChangeProperty(display_config->display, screen_configs[i].window,
                     net_wm_state, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&net_wm_fullscreen, 1);
-
-    /* Map the window (show it). */
-    XMapWindow(display_config->display, screen_configs[i].window);
   }
-}
-
-/**
- * @brief Cleans up resources before the application exits.
- */
-static void cleanUp(void) {
-  /* Show the cursor again and ungrab the keyboard. */
-  XFixesShowCursor(display_config->display, root_window);
-  XUngrabKeyboard(display_config->display, CurrentTime);
-
-  /* Destroy Cairo objects and X11 windows. */
-  for (int screen_num = 0; screen_num < display_config->num_screens;
-       screen_num++) {
-
-    if (screen_configs[screen_num].overlay_buffer) {
-      cairo_destroy(screen_configs[screen_num].overlay_buffer);
-      screen_configs[screen_num].overlay_buffer = NULL;
-    }
-
-    if (screen_configs[screen_num].background_buffer) {
-      cairo_destroy(screen_configs[screen_num].background_buffer);
-      screen_configs[screen_num].background_buffer = NULL;
-    }
-
-    if (screen_configs[screen_num].screen_buffer) {
-      cairo_destroy(screen_configs[screen_num].screen_buffer);
-      screen_configs[screen_num].screen_buffer = NULL;
-    }
-
-    if (screen_configs[screen_num].off_screen_buffer) {
-      cairo_surface_destroy(screen_configs[screen_num].off_screen_buffer);
-      screen_configs[screen_num].off_screen_buffer = NULL;
-    }
-
-    if (screen_configs[screen_num].surface) {
-      cairo_surface_destroy(screen_configs[screen_num].surface);
-      screen_configs[screen_num].surface = NULL;
-    }
-
-    XDestroyWindow(display_config->display, screen_configs[screen_num].window);
-  }
-
-  if (display_config->image_surface) {
-    cairo_surface_destroy(display_config->image_surface);
-    display_config->image_surface = NULL;
-  }
-
-  /* Wait for the date update thread to finish. */
-  pthread_join(date_thread, NULL);
 }
 
 /**
@@ -182,6 +137,32 @@ static void handle_keypress(XKeyEvent key_event) {
 }
 
 /**
+ * @brief Cleans up when the lockscreen finishes.
+ *
+ * We do NOT destroy the windows or surfaces since we want to re-use them
+ * on subsequent lock calls without re-initialization overhead.
+ */
+static void cleanUpLockscreen(void) {
+  /* Show the cursor and ungrab the keyboard. */
+  XFixesShowCursor(display_config->display, root_window);
+  XUngrabKeyboard(display_config->display, CurrentTime);
+
+  /* Optionally unmap the windows so they are “invisible” when not locked. */
+  for (int i = 0; i < display_config->num_screens; i++) {
+    XUnmapWindow(display_config->display, screen_configs[i].window);
+  }
+  XFlush(display_config->display);
+
+  /* Wait for the date update thread to finish. */
+  pthread_join(date_thread, NULL);
+
+  /* Clear any password data. */
+  memset(current_input, 0, sizeof(current_input));
+  current_input_index = 0;
+  password_is_wrong = 0;
+}
+
+/**
  * @brief Main function to initiate the lock screen.
  *
  * @return 0 on success, nonzero on failure.
@@ -196,9 +177,23 @@ int lockscreen(void) {
     return 1;
   }
 
-  /* Set up windows and graphics resources. */
-  initialize_windows();
-  initialize_graphics();
+  /* Map windows again; ensure fullscreen property is reapplied. */
+  Atom net_wm_state =
+      XInternAtom(display_config->display, "_NET_WM_STATE", False);
+  Atom net_wm_fullscreen =
+      XInternAtom(display_config->display, "_NET_WM_STATE_FULLSCREEN", False);
+
+  for (int i = 0; i < display_config->num_screens; i++) {
+    /* Re-assert the fullscreen property each time we remap the window: */
+    XChangeProperty(display_config->display, screen_configs[i].window,
+                    net_wm_state, XA_ATOM, 32, PropModeReplace,
+                    (unsigned char *)&net_wm_fullscreen, 1);
+
+    /* Map the window (show it). */
+    XMapWindow(display_config->display, screen_configs[i].window);
+  }
+
+  XFlush(display_config->display);
 
   /* Hide the cursor and grab the keyboard. */
   XFixesHideCursor(display_config->display, root_window);
@@ -231,7 +226,7 @@ int lockscreen(void) {
     }
   }
 
-  /* Cleanup resources before exiting. */
-  cleanUp();
+  /* Clean up, unmap, etc. */
+  cleanUpLockscreen();
   return 0;
 }

@@ -77,5 +77,6 @@ extern int lockscreen_running;
 /* ------------------------------------------------------------------------- */
 
 int lockscreen(void);
+void initialize_windows(void);
 
 #endif /* LOCKSCREEN_H */
