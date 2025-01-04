@@ -48,7 +48,7 @@ void parse_arguments(int argc, char *argv[]) {
   struct Argument *previous_arg = NULL;
   int is_first = 1;
 
-  for (int i = 0; i < argc; i++) {
+  for (int i = 1; i < argc; i++) {
     /* Allocate and initialize a new Argument node. */
     current_arg = (struct Argument *)malloc(sizeof(struct Argument));
     if (current_arg == NULL) {
@@ -70,7 +70,8 @@ void parse_arguments(int argc, char *argv[]) {
 
     /* Check for flags that require a value. */
     if ((strcmp(argv[i], "--image") == 0) ||
-        (strcmp(argv[i], "--suspend") == 0)) {
+        (strcmp(argv[i], "--suspend") == 0) ||
+        (strcmp(argv[i], "--color") == 0)) {
       if (i + 1 < argc) {
         /* Allocate and copy the next argument as the value. */
         current_arg->value = malloc(strlen(argv[i + 1]) + 1);

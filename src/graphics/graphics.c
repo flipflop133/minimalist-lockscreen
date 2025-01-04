@@ -2,25 +2,31 @@
  * @file graphics.c
  * @brief Provides functions for loading a background image, initializing
  *        per-screen graphics contexts, drawing overlays, and repainting
- *        backgrounds.
+ *        backgrounds, plus support for a solid color background.
  */
 
 #include "graphics.h"
 #include "../args.h"
 #include "../defs.h"
 #include "../lockscreen.h"
+#include "../utils.h"
 #include <X11/Xlib.h>
 #include <cairo/cairo-xlib.h>
 #include <cairo/cairo.h>
+#include <ctype.h>
 #include <malloc.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <string.h>
 
 /* ------------------------------------------------------------------------- */
 /* Forward Declarations                                                      */
 /* ------------------------------------------------------------------------- */
 static cairo_surface_t *load_background_image(void);
 static int setup_screen(int screen_num, cairo_surface_t *image_surface);
+static void parse_color_to_rgba(const char *color_str, double *r, double *g,
+                                double *b, double *a);
+static const char *g_color_arg = NULL;
 
 /* ------------------------------------------------------------------------- */
 /* Function Definitions                                                      */
@@ -30,12 +36,13 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface);
  * @brief Loads a background image from the file path specified by the
  *        "--image" command-line argument.
  *
- * @return A pointer to the created Cairo surface, or NULL if loading failed.
+ * @return A pointer to the created Cairo surface, or NULL if loading failed
+ *         or no image argument was provided.
  */
 static cairo_surface_t *load_background_image(void) {
   const char *image_path = retrieve_command_arg("--image");
   if (!image_path) {
-    fprintf(stderr, "No --image argument provided.\n");
+    /* No --image argument provided at all. */
     return NULL;
   }
 
@@ -57,12 +64,76 @@ static cairo_surface_t *load_background_image(void) {
 }
 
 /**
+ * @brief Parse a hex color string (#RRGGBB or #RRGGBBAA) into RGBA components.
+ *
+ * @param color_str The string containing the hex color, e.g. "#FF00FF" or
+ * "#FF00FF80".
+ * @param r Pointer to where the red component (0..1) will be stored.
+ * @param g Pointer to where the green component (0..1) will be stored.
+ * @param b Pointer to where the blue component (0..1) will be stored.
+ * @param a Pointer to where the alpha component (0..1) will be stored.
+ */
+static void parse_color_to_rgba(const char *color_str, double *r, double *g,
+                                double *b, double *a) {
+  /*
+   * A basic approach to parse #RRGGBB or #RRGGBBAA.
+   * If alpha is not provided, it defaults to 255 (opaque).
+   */
+  if (!color_str || color_str[0] != '#') {
+    /* Default to opaque black if parsing fails. */
+    *r = *g = *b = 0.0;
+    *a = 1.0;
+    return;
+  }
+
+  /* Remove leading '#' and convert to uppercase for simpler parsing. */
+  color_str++;
+  char hex[9]; // enough to hold RRGGBBAA + null terminator
+  memset(hex, 0, sizeof(hex));
+  size_t len = strlen(color_str);
+  if (len != 6 && len != 8) {
+    /* Invalid length, fallback to black. */
+    *r = *g = *b = 0.0;
+    *a = 1.0;
+    return;
+  }
+
+  /* Copy and uppercase. */
+  for (size_t i = 0; i < len; i++) {
+    hex[i] = (char)toupper((unsigned char)color_str[i]);
+  }
+
+  unsigned int rgba = 0;
+  /* Combine into a single integer. e.g. 0xRRGGBB or 0xRRGGBBAA. */
+  if (sscanf(hex, "%x", &rgba) != 1) {
+    /* Fallback to black if sscanf fails. */
+    *r = *g = *b = 0.0;
+    *a = 1.0;
+    return;
+  }
+
+  if (len == 6) {
+    /* #RRGGBB with no alpha. */
+    *r = ((rgba >> 16) & 0xFF) / 255.0;
+    *g = ((rgba >> 8) & 0xFF) / 255.0;
+    *b = (rgba & 0xFF) / 255.0;
+    *a = 1.0;
+  } else {
+    /* #RRGGBBAA. */
+    *r = ((rgba >> 24) & 0xFF) / 255.0;
+    *g = ((rgba >> 16) & 0xFF) / 255.0;
+    *b = ((rgba >> 8) & 0xFF) / 255.0;
+    *a = (rgba & 0xFF) / 255.0;
+  }
+}
+
+/**
  * @brief Sets up the graphics objects (surfaces, contexts, patterns) for
- *        one screen, based on the given background image surface.
+ *        one screen, based on the given background image surface or a color.
  *
  * @param screen_num Index of the screen to set up.
  * @param image_surface The Cairo surface containing the loaded background
- * image.
+ *                      image, or NULL if we should use the color argument.
  * @return 0 on success, non-zero on failure.
  */
 static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
@@ -107,44 +178,57 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
   cairo_set_font_face(screen_configs[screen_num].overlay_buffer, font_face);
   cairo_font_face_destroy(font_face); // the context holds its own reference
 
-  /*
-   *  Create a pattern from the loaded image surface, scale to fit,
-   *  paint onto background_buffer, then free the pattern.
-   */
-  cairo_pattern_t *pattern = cairo_pattern_create_for_surface(image_surface);
+  if (image_surface) {
+    /*
+     *  Create a pattern from the loaded image surface, scale to fit,
+     *  paint onto background_buffer, then free the pattern.
+     */
+    cairo_pattern_t *pattern = cairo_pattern_create_for_surface(image_surface);
 
-  /* Calculate scaling so the image fits the screen. */
-  double image_width = (double)cairo_image_surface_get_width(image_surface);
-  double image_height = (double)cairo_image_surface_get_height(image_surface);
-  double screen_width = (double)display_config->screen_info[screen_num].width;
-  double screen_height = (double)display_config->screen_info[screen_num].height;
+    /* Calculate scaling so the image fits the screen. */
+    double image_width = (double)cairo_image_surface_get_width(image_surface);
+    double image_height = (double)cairo_image_surface_get_height(image_surface);
+    double screen_width = (double)display_config->screen_info[screen_num].width;
+    double screen_height =
+        (double)display_config->screen_info[screen_num].height;
 
-  double x_scale = image_width / screen_width;
-  double y_scale = image_height / screen_height;
-  double scale_factor = (x_scale < y_scale) ? x_scale : y_scale;
+    double x_scale = image_width / screen_width;
+    double y_scale = image_height / screen_height;
+    double scale_factor = (x_scale < y_scale) ? x_scale : y_scale;
 
-  /* Invert the scale factor so we scale the pattern down to the screen size.
-   */
-  cairo_matrix_t matrix;
-  cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
-  cairo_pattern_set_matrix(pattern, &matrix);
+    /* Invert the scale factor so we scale the pattern down to the screen size.
+     */
+    cairo_matrix_t matrix;
+    cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
+    cairo_pattern_set_matrix(pattern, &matrix);
 
-  /* Paint background once onto background_buffer. */
-  cairo_set_source(screen_configs[screen_num].background_buffer, pattern);
-  cairo_paint(screen_configs[screen_num].background_buffer);
+    /* Paint background once onto background_buffer. */
+    cairo_set_source(screen_configs[screen_num].background_buffer, pattern);
+    cairo_paint(screen_configs[screen_num].background_buffer);
 
-  /* We no longer need the pattern once painted. */
-  cairo_pattern_destroy(pattern);
+    /* We no longer need the pattern once painted. */
+    cairo_pattern_destroy(pattern);
 
-  /*
-   * Optionally analyze the loaded background for text color.
-   * (If you do it here, it must happen before we destroy 'pattern'
-   * or the 'image_surface' in the caller.)
-   */
-  determine_text_color(image_surface,
-                       display_config->screen_info[screen_num].width,
-                       display_config->screen_info[screen_num].height);
+    /*
+     * Optionally analyze the loaded background for text color.
+     * Must happen before the 'image_surface' is destroyed.
+     */
+    determine_text_color(image_surface,
+                         display_config->screen_info[screen_num].width,
+                         display_config->screen_info[screen_num].height);
+  } else {
+    /*
+     * Fill the background with the provided color if image_surface is NULL.
+     */
+    double r, g, b, a;
+    parse_color_to_rgba(g_color_arg, &r, &g, &b, &a);
 
+    cairo_set_source_rgba(screen_configs[screen_num].background_buffer, r, g, b,
+                          a);
+    cairo_paint(screen_configs[screen_num].background_buffer);
+
+    determine_text_color_for_color(r, g, b);
+  }
   return 0; // Success
 }
 
@@ -152,18 +236,25 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
  * @brief Initializes graphics resources for the lockscreen.
  *
  * This includes setting up surfaces, contexts, and loading the background
- * image exactly once. After painting each screen's background, we free
- * the original image surface to reduce memory usage.
+ * image exactly once. If the image fails or isn't provided, we use a color.
  */
 void initialize_graphics(void) {
-  /* 1) Load the background image from the command-line argument. */
+  /* 1) Try loading the background image from the command-line argument. */
   display_config->image_surface = load_background_image();
+
+  /*
+   * 2) If there's no valid surface, check the --color argument.
+   *    If that is missing too, we fail early.
+   */
   if (!display_config->image_surface) {
-    fprintf(stderr, "Failed to load background image.\n");
-    return;
+    g_color_arg = retrieve_command_arg("--color");
+    if (!g_color_arg) {
+      fprintf(stderr, "No --color or --image argument provided.\n");
+      return;
+    }
   }
 
-  /* 2) Initialize each screen using the loaded image. */
+  /* 3) Initialize each screen using the loaded image or color. */
   for (int screen_num = 0; screen_num < display_config->num_screens;
        screen_num++) {
     if (setup_screen(screen_num, display_config->image_surface) != 0) {
@@ -173,14 +264,17 @@ void initialize_graphics(void) {
   }
 
   /*
-   * 3) Now that each screen’s background_buffer has a copy
-   *    of the image, free the original surface to avoid
-   *    keeping large image data in memory.
+   * 4) Now that each screen’s background_buffer has a copy of the image
+   *    (if any), free the original surface to avoid keeping large image
+   *    data in memory.
    */
-  cairo_surface_destroy(display_config->image_surface);
-  display_config->image_surface = NULL;
+  if (display_config->image_surface) {
+    cairo_surface_destroy(display_config->image_surface);
+    display_config->image_surface = NULL;
+  }
   malloc_trim(0);
-  /* 4) Perform an initial draw to make the lock screen visible. */
+
+  /* 5) Perform an initial draw to make the lock screen visible. */
   draw_graphics();
 }
 

@@ -127,3 +127,35 @@ void determine_text_color(cairo_surface_t *img, int width, int height) {
      you can adapt logic to apply individually per screen. */
   screen_configs->text_color = text_color;
 }
+
+/**
+ * @brief Determines and sets the text color (`screen_configs->text_color`)
+ *        based on the brightness of a solid color background.
+ *
+ * If the perceived brightness of the background color is below a threshold,
+ * the text color is set to white (`255`). Otherwise, it is set to black (`0`).
+ *
+ * @param r Red component of the color (0–255).
+ * @param g Green component of the color (0–255).
+ * @param b Blue component of the color (0–255).
+ * @param a Alpha component of the color (0–255, optional, ignored in this
+ * case).
+ */
+void determine_text_color_for_color(double r, double g, double b) {
+
+  /* Calculate perceived brightness using the formula:
+     Brightness = 0.2126 * R + 0.7152 * G + 0.0722 * B
+  */
+  double brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+  /* Threshold for switching to white text. */
+  const double brightness_threshold =
+      0.5; // Adjusted for normalized range [0, 1]
+
+  /* Determine the text color based on brightness. */
+  if (brightness < brightness_threshold) {
+    screen_configs->text_color = 255; // White
+  } else {
+    screen_configs->text_color = 0; // Black
+  }
+}

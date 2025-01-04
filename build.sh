@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BUILD_DIR="build"
-BUILD_TYPE="Release" # Default build type
+BUILD_TYPE="release" # Default build type
 
 export CC=clang
 export CXX=clang++
