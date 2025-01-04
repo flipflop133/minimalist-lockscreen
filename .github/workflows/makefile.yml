@@ -19,7 +19,7 @@ jobs:
         sudo apt-get install -y libx11-dev libxfixes-dev libxrandr-dev xserver-xorg-dev libxinerama-dev libpam0g-dev libxft-dev libxss-dev libxext-dev
 
     - name: make
-      run: ./build.sh
+      run: ./build.sh release
 
     - name: make debug
       run: ./build.sh debug
