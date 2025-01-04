@@ -44,11 +44,21 @@ Cleaning:
 ```
 
 - `--image` is the path to the image you want to use as a wallpaper.
-- `--suspend` is the time in seconds after which the computer will be suspended (systemctl suspend is called).
+- `--suspend` is the time in seconds after which the computer will be suspended (`systemctl suspend` is called).
+
+Alternatively, you can use the `--color` argument to specify a solid background color:
+
+```bash
+./build/minimalist-Lockscreen --color "ff0000" --suspend 600
+```
+
+- `--color` sets the background color as a hexadecimal value. RGB (ex: `#ff0000`) and RGBA (ex: `#ff0000ff`) values are supported.
+
+If both `--image` and `--color` are provided, `--image` takes precedence.
 
 ## Controlling the lockscreen
 
-The application listen to dpms and Screensaver events to lock the screen when the screen is turned off and the screensaver is activated if screensaver is enabled after the screensaver timeout.
+The application listens to DPMS and Screensaver events to lock the screen when the screen is turned off and the screensaver is activated (if screensaver is enabled after the screensaver timeout).
 
 ### Controlling screen power
 
