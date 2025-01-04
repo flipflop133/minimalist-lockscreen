@@ -113,7 +113,7 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
   /* Create a pattern for the background from the loaded image surface. */
   screen_configs[screen_num].pattern =
       cairo_pattern_create_for_surface(image_surface);
-
+  cairo_surface_destroy(image_surface);
   /* Determine how to scale the image so it fits the screen. */
   double image_width = (double)cairo_image_surface_get_width(image_surface);
   double image_height = (double)cairo_image_surface_get_height(image_surface);

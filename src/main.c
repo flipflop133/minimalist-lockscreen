@@ -136,9 +136,8 @@ static void *screensaver_loop(void *arg) {
     DPMSInfo(display_config->display, &power_level, &dpms_enabled);
 
     /* Wait until idle time exceeds 'timeout' or DPMS is not 'On'. */
-    while (
-        (ssi->idle < (CARD16)(timeout * 1000) || dpms_enabled == DPMSModeOn) &&
-        running) {
+    while (((int)ssi->idle < (timeout * 1000) || dpms_enabled == DPMSModeOn) &&
+           running) {
       DPMSInfo(display_config->display, &power_level, &dpms_enabled);
       sleep(1);
     }
@@ -176,7 +175,14 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
     }
 
     int suspend_sec = atoi(suspend_str);
-    while ((int)ssi->idle < (suspend_sec * 1000) && running) {
+    BOOL dpms_enabled;
+    CARD16 power_level;
+    DPMSInfo(display_config->display, &power_level, &dpms_enabled);
+    // Wait until idle time exceeds 'suspend_sec' or DPMS is not 'On' or a media
+    // player is running.
+    while (((int)ssi->idle < (suspend_sec * 1000) ||
+            dpms_enabled == DPMSModeOn || is_player_running()) &&
+           running) {
       sleep(1);
     }
     if (!running) {
@@ -184,14 +190,11 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
     }
 
     /* Wait for lockscreen to activate before suspending. */
-    BOOL state;
-    CARD16 power_level;
-    DPMSInfo(display_config->display, &power_level, &state);
     while (!lockscreen_running && running) {
       sleep(1);
     }
 
-    if (!is_player_running() && running) {
+    if (running) {
       system("systemctl suspend");
     }
 

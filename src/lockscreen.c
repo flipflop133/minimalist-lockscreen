@@ -100,10 +100,6 @@ static void cleanUp(void) {
   /* Destroy Cairo objects and X11 windows. */
   for (int screen_num = 0; screen_num < display_config->num_screens;
        screen_num++) {
-    if (screen_configs[screen_num].pattern) {
-      cairo_pattern_destroy(screen_configs[screen_num].pattern);
-      screen_configs[screen_num].pattern = NULL;
-    }
 
     if (screen_configs[screen_num].overlay_buffer) {
       cairo_destroy(screen_configs[screen_num].overlay_buffer);
