@@ -180,9 +180,17 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
 
   if (image_surface) {
     /*
-     *  Create a pattern from the loaded image surface, scale to fit,
-     *  paint onto background_buffer, then free the pattern.
+     * Create a pattern from the loaded image surface, scale to fit,
+     * and paint onto a temporary surface. Then copy the result
+     * to the background_buffer.
      */
+    cairo_surface_t *temp_surface = cairo_surface_create_similar(
+        screen_configs[screen_num].surface, CAIRO_CONTENT_COLOR_ALPHA,
+        display_config->screen_info[screen_num].width,
+        display_config->screen_info[screen_num].height);
+
+    cairo_t *temp_cr = cairo_create(temp_surface);
+
     cairo_pattern_t *pattern = cairo_pattern_create_for_surface(image_surface);
 
     /* Calculate scaling so the image fits the screen. */
@@ -202,11 +210,18 @@ static int setup_screen(int screen_num, cairo_surface_t *image_surface) {
     cairo_matrix_init_scale(&matrix, scale_factor, scale_factor);
     cairo_pattern_set_matrix(pattern, &matrix);
 
-    /* Paint background once onto background_buffer. */
-    cairo_set_source(screen_configs[screen_num].background_buffer, pattern);
+    /* Paint onto the temporary context. */
+    cairo_set_source(temp_cr, pattern);
+    cairo_paint(temp_cr);
+
+    /* Copy the temporary surface into the long-lived background_buffer. */
+    cairo_set_source_surface(screen_configs[screen_num].background_buffer,
+                             temp_surface, 0, 0);
     cairo_paint(screen_configs[screen_num].background_buffer);
 
-    /* We no longer need the pattern once painted. */
+    /* Cleanup temporary resources. */
+    cairo_destroy(temp_cr);
+    cairo_surface_destroy(temp_surface);
     cairo_pattern_destroy(pattern);
 
     /*
