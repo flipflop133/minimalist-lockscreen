@@ -84,8 +84,8 @@ void draw_clock(int screen_num) {
   /* Repaint background to ensure old text is cleared. */
   int repaint_x = (int)(date_x + date_extents.x_bearing);
   int repaint_y = (int)(date_y + date_extents.y_bearing);
-  int repaint_width = (int)date_extents.width;
-  int repaint_height = (int)date_extents.height;
+  int repaint_width = (int)date_extents.width + font_extents.max_x_advance;
+  int repaint_height = (int)date_extents.height + font_extents.max_y_advance;
   repaint_background_at(repaint_x, repaint_y, repaint_width, repaint_height,
                         screen_num);
 
@@ -111,8 +111,8 @@ void draw_clock(int screen_num) {
 
   repaint_x = (int)(clock_x + clock_extents.x_bearing);
   repaint_y = (int)(clock_y + clock_extents.y_bearing);
-  repaint_width = (int)clock_extents.width;
-  repaint_height = (int)clock_extents.height;
+  repaint_width = (int)clock_extents.width + font_extents.max_x_advance;
+  repaint_height = (int)clock_extents.height + font_extents.max_y_advance;
   repaint_background_at(repaint_x, repaint_y, repaint_width, repaint_height,
                         screen_num);
 
