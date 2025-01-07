@@ -184,6 +184,12 @@ int lockscreen(void) {
       XInternAtom(display_config->display, "_NET_WM_STATE_FULLSCREEN", False);
 
   for (int i = 0; i < display_config->num_screens; i++) {
+    /* Don't allow the user to close the window. */
+    Atom wm_delete_window =
+        XInternAtom(display_config->display, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(display_config->display, screen_configs[i].window,
+                    &wm_delete_window, 1);
+
     /* Re-assert the fullscreen property each time we remap the window: */
     XChangeProperty(display_config->display, screen_configs[i].window,
                     net_wm_state, XA_ATOM, 32, PropModeReplace,

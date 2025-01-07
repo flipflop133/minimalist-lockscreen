@@ -43,6 +43,21 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  * @return Zero on success, non-zero otherwise.
  */
 int main(int argc, char *argv[]) {
+  /*  Daemonize the process. */
+  pid_t pid = fork();
+  if (pid < 0) {
+    perror("fork");
+    exit(EXIT_FAILURE);
+  }
+  if (pid > 0) {
+    exit(EXIT_SUCCESS);
+  }
+
+  if (setsid() < 0) {
+    perror("setsid");
+    exit(EXIT_FAILURE);
+  }
+
   /* Allocate XScreenSaverInfo struct and parse command-line arguments. */
   ssi = XScreenSaverAllocInfo();
   parse_arguments(argc, argv);
