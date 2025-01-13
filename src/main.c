@@ -12,14 +12,15 @@
 #include <X11/extensions/dpmsconst.h>
 #include <X11/extensions/scrnsaver.h>
 #include <cairo/cairo.h>
+#include <fcntl.h>
 #include <fontconfig/fontconfig.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 /* ------------------------------------------------------------------------- */
 /* Forward Declarations                                                      */
 /* ------------------------------------------------------------------------- */
@@ -31,10 +32,11 @@ static void lockscreen_handler(int signal);
 static int is_player_running(void);
 
 /* Global or shared variables. */
-volatile int running = 1;
+int lock_screen = 0;
+atomic_int running = 1;
 XScreenSaverInfo *ssi = NULL;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
+struct DisplayConfig *display_config = NULL;
+int lockscreen_pipe_fd[2];
 /**
  * @brief Application entry point.
  *
@@ -44,6 +46,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  */
 int main(int argc, char *argv[]) {
   /*  Daemonize the process. */
+#ifndef DEBUG
   pid_t pid = fork();
   if (pid < 0) {
     perror("fork");
@@ -57,6 +60,7 @@ int main(int argc, char *argv[]) {
     perror("setsid");
     exit(EXIT_FAILURE);
   }
+#endif
 
   /* Allocate XScreenSaverInfo struct and parse command-line arguments. */
   ssi = XScreenSaverAllocInfo();
@@ -80,10 +84,30 @@ int main(int argc, char *argv[]) {
   initialize_windows();
   initialize_graphics();
 
-  /* Set up signal handlers. */
-  signal(SIGINT, main_cleanup);
-  signal(SIGTERM, main_cleanup);
-  signal(SIGUSR1, lockscreen_handler);
+  /* Set up signal handler for SIGUSR1 */
+  struct sigaction sa;
+  sa.sa_handler = lockscreen_handler;
+  sa.sa_flags = SA_RESTART; // Ensure interrupted system calls restart
+  sigemptyset(&sa.sa_mask);
+  if (sigaction(SIGUSR1, &sa, NULL) == -1) {
+    perror("sigaction SIGUSR1");
+    exit(EXIT_FAILURE);
+  }
+
+  /* Set up signal handler for SIGINT, SIGTERM, SIGABRT */
+  sa.sa_handler = main_cleanup;
+  if (sigaction(SIGINT, &sa, NULL) == -1) {
+    perror("sigaction SIGINT");
+    exit(EXIT_FAILURE);
+  }
+  if (sigaction(SIGTERM, &sa, NULL) == -1) {
+    perror("sigaction SIGTERM");
+    exit(EXIT_FAILURE);
+  }
+  if (sigaction(SIGABRT, &sa, NULL) == -1) {
+    perror("sigaction SIGABRT");
+    exit(EXIT_FAILURE);
+  }
 
   /* Query initial screensaver info. */
   XScreenSaverQueryInfo(display_config->display,
@@ -104,17 +128,32 @@ int main(int argc, char *argv[]) {
   pthread_create(&screensaver_thread, NULL, screensaver_loop, &timeout);
   pthread_create(&sleep_timeout_thread, NULL, sleep_timeout_loop, NULL);
 
+  if (pipe(lockscreen_pipe_fd) == -1) {
+    perror("Error creating pipe");
+    exit(EXIT_FAILURE);
+  }
+  fcntl(lockscreen_pipe_fd[0], F_SETFL, O_NONBLOCK);
+  char buffer;
+  while (atomic_load(&running)) {
+    ssize_t bytes_read = read(lockscreen_pipe_fd[0], &buffer, 1);
+    if (bytes_read > 0) {
+      lockscreen();
+    }
+  }
+  close(lockscreen_pipe_fd[0]);
+  close(lockscreen_pipe_fd[1]);
   /* Wait for threads to end before exiting. */
   pthread_join(screensaver_info_thread, NULL);
   pthread_join(screensaver_thread, NULL);
   pthread_join(sleep_timeout_thread, NULL);
 
   /* Clean up shared resources. */
+  exit_cleanup();
+
   if (display_config->screen_info) {
     XFree(display_config->screen_info);
     display_config->screen_info = NULL;
   }
-  pthread_mutex_destroy(&mutex);
 
   if (ssi) {
     XFree(ssi);
@@ -140,6 +179,15 @@ int main(int argc, char *argv[]) {
 }
 
 /**
+ * @brief Triggers the lockscreen by writing a character to the pipe.
+ *
+ * This function writes the character 'x' to the write end of the pipe
+ * specified by the global variable `pipe_fd`. This action is intended
+ * to signal the lockscreen mechanism to activate.
+ */
+static void trigger_lockscreen() { write(lockscreen_pipe_fd[1], "x", 1); }
+
+/**
  * @brief Thread function that checks inactivity and triggers the lock screen.
  *
  * @param arg Expected to be a pointer to an integer containing the timeout (in
@@ -149,28 +197,28 @@ int main(int argc, char *argv[]) {
 static void *screensaver_loop(void *arg) {
   int timeout = *((int *)arg);
 
-  while (running) {
+  while (atomic_load(&running)) {
     BOOL dpms_enabled;
     CARD16 power_level;
     DPMSInfo(display_config->display, &power_level, &dpms_enabled);
 
     /* Wait until idle time exceeds 'timeout' or DPMS is not 'On'. */
     while (((int)ssi->idle < (timeout * 1000) || dpms_enabled == DPMSModeOn) &&
-           running) {
+           atomic_load(&running)) {
       DPMSInfo(display_config->display, &power_level, &dpms_enabled);
       sleep(1);
     }
-    if (!running) {
+    if (!atomic_load(&running)) {
       break;
     }
 
     /* If the lockscreen is not active, invoke it. */
-    if (!lockscreen_running) {
-      lockscreen();
+    if (!atomic_load(&lockscreen_running)) {
+      trigger_lockscreen();
     }
 
     /* Wait until lockscreen stops running. */
-    while (lockscreen_running && running) {
+    while (atomic_load(&lockscreen_running) && atomic_load(&running)) {
       sleep(1);
     }
     sleep(1);
@@ -186,7 +234,7 @@ static void *screensaver_loop(void *arg) {
  * @return Always returns NULL.
  */
 static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
-  while (running) {
+  while (atomic_load(&running)) {
     char *suspend_str = retrieve_command_arg("--suspend");
     if (!suspend_str) {
       sleep(1);
@@ -201,23 +249,23 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
     // player is running.
     while (((int)ssi->idle < (suspend_sec * 1000) ||
             dpms_enabled == DPMSModeOn || is_player_running()) &&
-           running) {
+           atomic_load(&running)) {
       sleep(1);
     }
-    if (!running) {
+    if (!atomic_load(&running)) {
       break;
     }
 
     /* Wait for lockscreen to activate before suspending. */
-    while (!lockscreen_running && running) {
+    while (!atomic_load(&lockscreen_running) && atomic_load(&running)) {
       sleep(1);
     }
 
-    if (running) {
+    if (atomic_load(&running)) {
       system("systemctl suspend");
     }
 
-    while (lockscreen_running && running) {
+    while (atomic_load(&lockscreen_running) && atomic_load(&running)) {
       sleep(1);
     }
   }
@@ -231,7 +279,7 @@ static void *sleep_timeout_loop(void *arg __attribute__((unused))) {
  * @return Always returns NULL.
  */
 static void *update_xscreensaver_info_loop(void *arg __attribute__((unused))) {
-  while (running) {
+  while (atomic_load(&running)) {
     XScreenSaverQueryInfo(display_config->display,
                           DefaultRootWindow(display_config->display), ssi);
     sleep(1);
@@ -244,7 +292,9 @@ static void *update_xscreensaver_info_loop(void *arg __attribute__((unused))) {
  *
  * @param signal The signal number (unused).
  */
-static void main_cleanup(int signal __attribute__((unused))) { running = 0; }
+static void main_cleanup(int signal __attribute__((unused))) {
+  atomic_store(&running, 0);
+}
 
 /**
  * @brief Signal handler to trigger the lockscreen on SIGUSR1.
@@ -252,8 +302,8 @@ static void main_cleanup(int signal __attribute__((unused))) { running = 0; }
  * @param signal The signal number (unused).
  */
 static void lockscreen_handler(int signal __attribute__((unused))) {
-  if (!lockscreen_running) {
-    lockscreen();
+  if (!atomic_load(&lockscreen_running)) {
+    trigger_lockscreen();
   }
 }
 

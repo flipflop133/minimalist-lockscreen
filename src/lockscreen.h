@@ -11,6 +11,7 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <cairo/cairo.h>
+#include <stdatomic.h>
 
 /* ------------------------------------------------------------------------- */
 /* Structure Definitions                                                     */
@@ -48,9 +49,9 @@ struct DisplayConfig {
 /* ------------------------------------------------------------------------- */
 
 /**
- * @brief Array of ScreenConfig objects, one per screen. TODO: Make this dynamic.
+ * @brief Array of ScreenConfig objects, one per screen.
  */
-extern struct ScreenConfig screen_configs[128];
+extern struct ScreenConfig *screen_configs;
 
 /**
  * @brief Pointer to global display configuration.
@@ -70,7 +71,10 @@ extern int password_is_wrong;
 /**
  * @brief Flag controlling the lockscreen’s main event loop. 1 = running, 0 = stopped.
  */
-extern int lockscreen_running;
+extern atomic_int lockscreen_running;
+
+extern atomic_int needs_redraw;
+extern Atom redraw_atom;
 
 /* ------------------------------------------------------------------------- */
 /* Function Declarations                                                     */

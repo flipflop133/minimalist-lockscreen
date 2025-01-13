@@ -7,7 +7,6 @@
 
 #include "graphics.h"
 #include "../args.h"
-#include "../defs.h"
 #include "../lockscreen.h"
 #include "../utils.h"
 #include <X11/Xlib.h>
@@ -259,13 +258,16 @@ void initialize_graphics(void) {
 
   /*
    * 2) If there's no valid surface, check the --color argument.
-   *    If that is missing too, we fail early.
+   *    If that is missing too, we use a black background.
    */
   if (!display_config->image_surface) {
     g_color_arg = retrieve_command_arg("--color");
     if (!g_color_arg) {
-      fprintf(stderr, "No --color or --image argument provided.\n");
-      return;
+      fprintf(
+          stderr,
+          "No --color or --image argument provided. Using black background\n");
+      // black background by default
+      g_color_arg = "#000000";
     }
   }
 
@@ -288,19 +290,40 @@ void initialize_graphics(void) {
     display_config->image_surface = NULL;
   }
   malloc_trim(0);
+}
 
-  /* 5) Perform an initial draw to make the lock screen visible. */
-  draw_graphics();
+/**
+ * @brief Sends a custom X event to the root window to trigger a redraw on all
+ * screens.
+ *
+ * @param display Pointer to the X display.
+ * @param root_window The root window of the X display.
+ */
+void request_redraw(Display *display) {
+  printf("Requesting redraw\n");
+  XClientMessageEvent ev = {0};
+  ev.type = ClientMessage;
+  ev.message_type = redraw_atom; // The custom atom
+  ev.format = 32;                // Data format (32 bits)
+  ev.data.l[0] = 0; // Can be used to pass additional data if needed
+
+  // Dispatch the event to each lockscreen window
+  for (int i = 0; i < display_config->num_screens; i++) {
+    ev.window = screen_configs[i].window;
+    XSendEvent(display, screen_configs[i].window, False, StructureNotifyMask,
+               (XEvent *)&ev);
+  }
+
+  XFlush(display); // Ensure events are sent immediately
 }
 
 /**
  * @brief Draw the final screen content by compositing the off-screen buffers
  *        onto the on-screen surfaces.
+ * This function should never be called outside the main thread as cairo is not
+ * thread-safe, instead use request_redraw().
  */
 void draw_graphics(void) {
-  /* Ensure thread safety if multiple threads call drawing functions. */
-  pthread_mutex_lock(&mutex);
-
   /* Redraw UI elements on each screen. */
   for (int screen_num = 0; screen_num < display_config->num_screens;
        screen_num++) {
@@ -314,8 +337,6 @@ void draw_graphics(void) {
                              0);
     cairo_paint(screen_configs[screen_num].screen_buffer);
   }
-
-  pthread_mutex_unlock(&mutex);
 }
 
 /**

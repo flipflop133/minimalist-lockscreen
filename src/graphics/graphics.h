@@ -7,6 +7,7 @@
  *        including rendering and color manipulation.
  */
 
+#include <X11/Xlib.h>
 #include <cairo/cairo.h>
 
 /* ------------------------------------------------------------------------- */
@@ -19,5 +20,6 @@ void initialize_graphics(void);
 void draw_graphics(void);
 int get_opposite_color(int color);
 void repaint_background_at(int x, int y, int width, int height, int screen_num);
-
+void exit_cleanup(void);
+void request_redraw(Display *display);
 #endif /* GRAPHICS_H */

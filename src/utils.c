@@ -23,14 +23,16 @@
  * @return The X11 pixel value corresponding to the color.
  */
 unsigned long hex_color_to_pixel(char *hex_color, int screen_num) {
-  XColor color;
+  XColor color = {0};
   Colormap colormap = DefaultColormap(display_config->display, screen_num);
 
   if (!XParseColor(display_config->display, colormap, hex_color, &color)) {
     fprintf(stderr, "Warning: Failed to parse color %s.\n", hex_color);
+    return 0;
   }
   if (!XAllocColor(display_config->display, colormap, &color)) {
     fprintf(stderr, "Warning: Failed to allocate color %s.\n", hex_color);
+    return 0;
   }
   return color.pixel;
 }
@@ -70,7 +72,7 @@ void determine_text_color(cairo_surface_t *img, int width, int height) {
     long total_pixels = 0;
 
     /* Access pixel data. */
-    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(img);
+    uint32_t const *data = (uint32_t *)cairo_image_surface_get_data(img);
     if (data == NULL) {
       fprintf(stderr, "Warning: Unable to access image data.\n");
     } else {
@@ -118,14 +120,14 @@ void determine_text_color(cairo_surface_t *img, int width, int height) {
     }
     /* If the average is below roughly half the maximum, set text color to 255.
      */
-    if ((double)sum / (2.0) < 127.5) {
+    if ((double)sum / 2.0 < 127.5) {
       text_color = 255;
     }
   }
 
   /* Apply to the first screen_config. If multiple screens are used,
      you can adapt logic to apply individually per screen. */
-  screen_configs->text_color = text_color;
+  screen_configs[0].text_color = text_color;
 }
 
 /**
@@ -154,8 +156,8 @@ void determine_text_color_for_color(double r, double g, double b) {
 
   /* Determine the text color based on brightness. */
   if (brightness < brightness_threshold) {
-    screen_configs->text_color = 255; // White
+    screen_configs[0].text_color = 255; // White
   } else {
-    screen_configs->text_color = 0; // Black
+    screen_configs[0].text_color = 0; // Black
   }
 }

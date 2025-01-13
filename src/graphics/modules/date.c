@@ -10,10 +10,11 @@
 #include <unistd.h>
 
 /* Global structure to hold date/time strings. */
-static struct DateData {
+struct DateData {
   char date[64];
   char clock[32];
-} g_date_data;
+};
+static struct DateData g_date_data;
 
 /**
  * @brief Thread function to continuously update the date/time strings.
@@ -22,9 +23,9 @@ static struct DateData {
  * @return Always returns NULL.
  */
 void *date_loop(void *unused __attribute__((unused))) {
-  while (lockscreen_running) {
+  while (atomic_load(&lockscreen_running)) {
     time_t current_time = time(NULL);
-    struct tm *local_tm = localtime(&current_time);
+    struct tm const *local_tm = localtime(&current_time);
 
     if (local_tm == NULL) {
       /* If localtime() fails, just sleep briefly and continue. */
@@ -37,9 +38,8 @@ void *date_loop(void *unused __attribute__((unused))) {
     /* Format: e.g., "08:05" in 12-hour format */
     strftime(g_date_data.clock, sizeof(g_date_data.clock), "%I:%M", local_tm);
 
-    /* Redraw graphics to reflect the updated date/time. */
-    draw_graphics();
-
+    // Trigger a redraw event
+    request_redraw(display_config->display);
     /* Update once per second. */
     sleep(1);
   }
@@ -84,8 +84,9 @@ void draw_clock(int screen_num) {
   /* Repaint background to ensure old text is cleared. */
   int repaint_x = (int)(date_x + date_extents.x_bearing);
   int repaint_y = (int)(date_y + date_extents.y_bearing);
-  int repaint_width = (int)date_extents.width + font_extents.max_x_advance;
-  int repaint_height = (int)date_extents.height + font_extents.max_y_advance;
+  int repaint_width = (int)date_extents.width + (int)font_extents.max_x_advance;
+  int repaint_height =
+      (int)date_extents.height + (int)font_extents.max_y_advance;
   repaint_background_at(repaint_x, repaint_y, repaint_width, repaint_height,
                         screen_num);
 
@@ -111,8 +112,8 @@ void draw_clock(int screen_num) {
 
   repaint_x = (int)(clock_x + clock_extents.x_bearing);
   repaint_y = (int)(clock_y + clock_extents.y_bearing);
-  repaint_width = (int)clock_extents.width + font_extents.max_x_advance;
-  repaint_height = (int)clock_extents.height + font_extents.max_y_advance;
+  repaint_width = (int)clock_extents.width + (int)font_extents.max_x_advance;
+  repaint_height = (int)clock_extents.height + (int)font_extents.max_y_advance;
   repaint_background_at(repaint_x, repaint_y, repaint_width, repaint_height,
                         screen_num);
 

@@ -13,9 +13,4 @@
 /* Global Variables                                                          */
 /* ------------------------------------------------------------------------- */
 
-/**
- * @brief Mutex used for thread-safety in certain shared resources.
- */
-extern pthread_mutex_t mutex;
-
 #endif /* DEFS_H */

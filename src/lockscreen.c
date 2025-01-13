@@ -19,23 +19,25 @@
 #include <ctype.h>
 #include <pthread.h>
 #include <pwd.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-/* Global (extern) variables declared in lockscreen.h or elsewhere. */
-struct DisplayConfig *display_config = NULL;
-struct ScreenConfig
-    screen_configs[128]; /* TODO: Use dynamic array if needed. */
+/* ------------------------------------------------------------------------- */
+/* Global Variables                                                          */
+/* ------------------------------------------------------------------------- */
+struct ScreenConfig *screen_configs = NULL;
 struct passwd *pw = NULL;
 char current_input[128] = {0};
 int current_input_index = 0;
 int password_is_wrong = 0;
-int lockscreen_running = 0;
+atomic_int lockscreen_running = 0;
 pthread_t date_thread;
 Window root_window;
-
+atomic_int needs_redraw = 0;
+Atom redraw_atom;
 /* ------------------------------------------------------------------------- */
 /* Local Prototypes                                                          */
 /* ------------------------------------------------------------------------- */
@@ -46,11 +48,6 @@ static void handle_keypress(XKeyEvent key_event);
  * @brief Initializes the X11 windows for the lockscreen.
  */
 void initialize_windows(void) {
-  if (display_config->display == NULL) {
-    fprintf(stderr, "Cannot open display.\n");
-    exit(EXIT_FAILURE);
-  }
-
   /* Query the screen info for multi-monitor support (Xinerama). */
   display_config->screen_info = XineramaQueryScreens(
       display_config->display, &display_config->num_screens);
@@ -67,6 +64,17 @@ void initialize_windows(void) {
   /* Get the root window. */
   root_window = RootWindow(display_config->display,
                            DefaultScreen(display_config->display));
+  if (root_window == None) {
+    fprintf(stderr, "Failed to get root window.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  screen_configs = (struct ScreenConfig *)calloc(display_config->num_screens,
+                                                 sizeof(struct ScreenConfig));
+  if (!screen_configs) {
+    fprintf(stderr, "Failed to allocate memory for screen configurations.\n");
+    exit(EXIT_FAILURE);
+  }
 
   /* Create a fullscreen window on each screen. */
   for (int i = 0; i < display_config->num_screens; i++) {
@@ -79,7 +87,8 @@ void initialize_windows(void) {
     XStoreName(display_config->display, screen_configs[i].window,
                "minimalist_lockscreen");
     XSelectInput(display_config->display, screen_configs[i].window,
-                 ExposureMask | KeyPressMask);
+                 SubstructureNotifyMask | ExposureMask | KeyPressMask |
+                     StructureNotifyMask);
 
     /* Make the window appear fullscreen. */
     Atom net_wm_state =
@@ -91,6 +100,8 @@ void initialize_windows(void) {
                     net_wm_state, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&net_wm_fullscreen, 1);
   }
+
+  redraw_atom = XInternAtom(display_config->display, "REDRAW_EVENT", False);
 }
 
 /**
@@ -110,7 +121,7 @@ static void handle_keypress(XKeyEvent key_event) {
   } else if (key_event.keycode == 36) { /* Enter */
     /* Attempt authentication. If successful, exit the lock screen. */
     if (auth_pam(current_input, pw->pw_name) == 0) {
-      lockscreen_running = 0;
+      atomic_store(&lockscreen_running, 0);
     } else {
       password_is_wrong = 1;
     }
@@ -122,18 +133,14 @@ static void handle_keypress(XKeyEvent key_event) {
     KeySym key_sym;
     XLookupString(&key_event, &event_char, 1, &key_sym, NULL);
 
-    if (isprint((unsigned char)event_char)) {
+    if (isprint((unsigned char)event_char) &&
+        current_input_index < (int)(sizeof(current_input) - 1)) {
       /* Avoid writing past the buffer. */
-      if (current_input_index < (int)(sizeof(current_input) - 1)) {
-        current_input[current_input_index] = event_char;
-        current_input_index++;
-        current_input[current_input_index] = '\0';
-      }
+      current_input[current_input_index] = event_char;
+      current_input_index++;
+      current_input[current_input_index] = '\0';
     }
   }
-
-  /* Update the screen with any changes. */
-  draw_graphics();
 }
 
 /**
@@ -162,13 +169,24 @@ static void cleanUpLockscreen(void) {
   password_is_wrong = 0;
 }
 
+void exit_cleanup(void) {
+  // destroy all windows
+  for (int screen_num = 0; screen_num < display_config->num_screens;
+       screen_num++) {
+    cairo_surface_destroy(screen_configs[screen_num].surface);
+    cairo_destroy(screen_configs[screen_num].overlay_buffer);
+    XDestroyWindow(display_config->display, screen_configs[screen_num].window);
+  }
+  XDestroyWindow(display_config->display, root_window);
+}
+
 /**
  * @brief Main function to initiate the lock screen.
  *
  * @return 0 on success, nonzero on failure.
  */
 int lockscreen(void) {
-  lockscreen_running = 1;
+  atomic_store(&lockscreen_running, 1);
 
   /* Retrieve the user database entry for the current user. */
   pw = getpwnam(getlogin());
@@ -217,15 +235,21 @@ int lockscreen(void) {
 
   /* Event loop for the lock screen. */
   XEvent event;
-  while (lockscreen_running) {
+  while (atomic_load(&lockscreen_running)) {
     XNextEvent(display_config->display, &event);
-
     switch (event.type) {
+
+    case ClientMessage:
+      if (event.xclient.message_type == redraw_atom) {
+        draw_graphics();
+      }
+      break;
     case Expose:
       draw_graphics();
       break;
     case KeyPress:
       handle_keypress(event.xkey);
+      draw_graphics();
       break;
     default:
       break;
