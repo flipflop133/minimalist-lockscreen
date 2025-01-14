@@ -300,7 +300,6 @@ void initialize_graphics(void) {
  * @param root_window The root window of the X display.
  */
 void request_redraw(Display *display) {
-  printf("Requesting redraw\n");
   XClientMessageEvent ev = {0};
   ev.type = ClientMessage;
   ev.message_type = redraw_atom; // The custom atom

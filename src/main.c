@@ -132,7 +132,6 @@ int main(int argc, char *argv[]) {
     perror("Error creating pipe");
     exit(EXIT_FAILURE);
   }
-  fcntl(lockscreen_pipe_fd[0], F_SETFL, O_NONBLOCK);
   char buffer;
   while (atomic_load(&running)) {
     ssize_t bytes_read = read(lockscreen_pipe_fd[0], &buffer, 1);

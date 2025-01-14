@@ -19,6 +19,8 @@
 # Ignore CMAKE build directory
 build/
 
-# Ignore valgrind logs
+# Ignore logs
 vgcore.*
 *.out.*
+*.out
+*.txt
